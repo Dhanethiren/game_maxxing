@@ -1,0 +1,651 @@
+<title>{{TITLE}} Sound Studio</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+/* Layout: a mixing desk for one project. Sticky toolbar, scenario pads, a
+   "whole set" strip, then one tile per sound grouped like the project's
+   moments. Built by build_studio.js from synth_core.js + sounds.config.js. */
+:root {
+  --bg: #f1eefa;
+  --panel: #ffffff;
+  --panel-2: #f7f5fd;
+  --ink: #3d3a58;
+  --ink-soft: #75729a;
+  --line: #e1dcf2;
+  --accent: #7563c2;
+  --accent-ink: #ffffff;
+  --mint: #3fa898;
+  --warn: #c2622f;
+  --wave: #8d7bd6;
+  --font-display: "Space Grotesk", "Inter", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171528; --panel: #221f38; --panel-2: #1c1a31; --ink: #ecebfa; --ink-soft: #a6a3c8;
+    --line: #36325a; --accent: #b3a4ff; --accent-ink: #1b1830; --mint: #7fdcc9; --warn: #ffab7a;
+    --wave: #b3a4ff; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171528; --panel: #221f38; --panel-2: #1c1a31; --ink: #ecebfa; --ink-soft: #a6a3c8;
+  --line: #36325a; --accent: #b3a4ff; --accent-ink: #1b1830; --mint: #7fdcc9; --warn: #ffab7a;
+  --wave: #b3a4ff; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 0 48px;
+}
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+h1, h2, h3 { font-family: var(--font-display); text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); letter-spacing: -0.01em; }
+h2 { font-size: 1.15rem; }
+h3 { font-size: 1.05rem; }
+p { margin: 0; }
+.wrap { max-width: 1120px; margin: 0 auto; display: grid; gap: 22px; }
+.bar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding-block: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.bar .title { flex: 1 1 260px; min-width: 0; }
+.bar .title p { color: var(--ink-soft); font-size: 0.9rem; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+button {
+  font: 600 0.9rem var(--font-body); color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+  border-radius: 999px; padding: 8px 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px;
+  box-shadow: 0 2px 0 var(--line);
+}
+button:hover { border-color: var(--accent); }
+button:active { transform: translateY(1px); box-shadow: none; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); box-shadow: 0 3px 0 color-mix(in srgb, var(--accent) 60%, #000); }
+button.play { padding: 8px 16px; }
+button[aria-pressed="true"] { background: var(--mint); color: var(--accent-ink); border-color: var(--mint); }
+.status { font-size: 0.85rem; color: var(--ink-soft); min-height: 1.3em; }
+.status.ok { color: var(--mint); }
+.status.err { color: var(--warn); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: grid; gap: 14px; }
+.panel > header { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline; }
+.hint { color: var(--ink-soft); font-size: 0.88rem; }
+.switches { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.switches label { display: inline-flex; gap: 8px; align-items: center; font-size: 0.9rem; cursor: pointer; }
+.pads { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.pad { justify-content: flex-start; border-radius: 14px; padding: 12px 14px; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; }
+.pad b { font-family: var(--font-display); font-size: 0.98rem; }
+.pad span { font-weight: 400; font-size: 0.8rem; color: var(--ink-soft); }
+.group-title { display: flex; align-items: baseline; gap: 10px; }
+.group-title small { color: var(--ink-soft); font-size: 0.85rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 16px; display: grid; gap: 12px; min-width: 0; align-content: start; }
+.group { display: grid; gap: 12px; min-width: 0; }
+[hidden] { display: none !important; }
+.card .when { color: var(--ink-soft); font-size: 0.86rem; }
+.card .files { font: 500 0.75rem var(--font-mono); color: var(--ink-soft); overflow-wrap: anywhere; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { padding: 4px 10px; font-size: 0.8rem; box-shadow: none; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.wave { width: 100%; height: 56px; display: block; background: var(--panel-2); border-radius: 10px; border: 1px solid var(--line); }
+.dur { font: 500 0.75rem var(--font-mono); color: var(--ink-soft); }
+.knobs { display: grid; gap: 10px; }
+.knob { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; }
+.knob label { font-size: 0.86rem; font-weight: 600; }
+.knob output { font: 500 0.8rem var(--font-mono); color: var(--accent); font-variant-numeric: tabular-nums; }
+.knob input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); height: 22px; }
+.knob.changed label::after { content: " •"; color: var(--mint); }
+.foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; resize: vertical; }
+.json { font: 0.75rem var(--font-mono); min-height: 140px; }
+select { font: 0.88rem var(--font-body); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; grid-column: 1 / -1; width: 100%; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/*THEME*/
+</style>
+
+<div class="wrap">
+  <div class="bar">
+    <div class="title">
+      <h1>{{TITLE}} Sound Studio</h1>
+      <p>{{SUBTITLE}}</p>
+    </div>
+    <div class="actions">
+      <button id="save" class="primary" type="button">Save for Claude</button>
+      <button id="download" type="button" hidden>Download WAV files</button>
+      <button id="resetAll" type="button">Reset everything</button>
+    </div>
+    <div id="status" class="status" role="status" aria-live="polite" style="flex-basis:100%"></div>
+  </div>
+
+  <section class="panel" aria-labelledby="ctx-h">
+    <header>
+      <h2 id="ctx-h">Try it in context</h2>
+      <p class="hint" id="ctx-hint">Hear the sounds in the order they really play.</p>
+    </header>
+    <div class="switches">
+      <label id="musicBedLabel"><input id="musicBed" type="checkbox"> Music underneath</label>
+      <label><input id="gameMix" type="checkbox" checked> Use in-game volumes</label>
+      <label><input id="autoplay" type="checkbox" checked> Play after each slider change</label>
+    </div>
+    <div class="pads" id="pads"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="set-h" id="setPanel">
+    <header>
+      <h2 id="set-h">Whole set</h2>
+      <p class="hint">These change many sounds together, so the set stays consistent.</p>
+    </header>
+    <div class="knobs" id="globalKnobs"></div>
+  </section>
+
+  <div id="groups" class="group" style="gap:26px"></div>
+
+  <section class="panel" aria-labelledby="send-h">
+    <header>
+      <h2 id="send-h">Send your sounds to the project</h2>
+    </header>
+    <p class="hint">Press <b>Save for Claude</b>, then tell Claude "apply my sound settings". Your exact settings rebuild every sound file, so the project plays exactly what you hear here. Add a note if something should change that the sliders can't do.</p>
+    <textarea id="note" placeholder="Optional note, e.g. the coin sound should feel more playful"></textarea>
+    <div id="fallback" hidden class="knobs">
+      <p class="hint">Saving isn't available in this view. Copy these settings and paste them to Claude instead.</p>
+      <textarea id="json" class="json" readonly></textarea>
+      <div><button id="copy" type="button">Copy settings</button></div>
+    </div>
+  </section>
+</div>
+
+
+<script>
+/*CORE*/
+</script>
+<script>
+/*CONFIG*/
+</script>
+<script>
+(function () {
+  'use strict';
+  const S = window.SoundCore.createEngine(window.SoundConfig(window.SoundCore));
+  const SLUG = /*SLUG*/'game';
+  const BUILT_AT = /*BUILT_AT*/0;
+  const CURRENT = /*CURRENT*/null;
+  const DRAFT_KEY = SLUG + '-sound-studio-draft-v1';
+  // What the project ships right now: the reset target and the "changed" baseline.
+  const BASE = S.normalize(CURRENT);
+  const LOOPS = S.CATALOGUE.filter(function (s) { return s.loop; });
+  const BED = (S.config.musicBed && S.CATALOGUE.some(function (s) { return s.key === S.config.musicBed; })) ? S.config.musicBed : (LOOPS[0] && LOOPS[0].key);
+  const PREVIEW = S.config.preview || [(S.CATALOGUE.find(function (s) { return !s.loop; }) || S.CATALOGUE[0]).key, 0];
+  const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
+  let settings = S.normalize(readDraft() || CURRENT);
+  const stamp = { __global: 0 };
+  const cache = new Map();
+  const ui = {};
+  let ctx = null;
+  let master = null;
+  let loopSrc = null;
+  let loopKey = null;
+  let db = null;
+  let downloads = null;
+  const $ = function (id) { return document.getElementById(id); };
+
+  // ------------------------------------------------------------ storage
+  function readDraft() {
+    try { const s = localStorage.getItem(DRAFT_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; }
+  }
+  function writeDraft() {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(settings)); } catch (e) { /* not available */ }
+  }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  // -------------------------------------------------------------- audio
+  function audio() {
+    if (!ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      ctx = new AC();
+      master = ctx.createGain();
+      master.gain.value = 0.9;
+      master.connect(ctx.destination);
+    }
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  }
+  function version(key) { return (stamp[key] || 0) + ':' + stamp.__global; }
+  function rendered(key, i) {
+    const id = key + ':' + i;
+    const v = version(key);
+    let c = cache.get(id);
+    if (!c || c.v !== v) {
+      c = { v: v, r: S.render(key, settings, i), buffer: null };
+      cache.set(id, c);
+    }
+    return c;
+  }
+  function bufferFor(key, i) {
+    const c = rendered(key, i);
+    if (!c.buffer) {
+      const a = audio();
+      const b = a.createBuffer(1, c.r.samples.length, c.r.sampleRate);
+      b.copyToChannel(c.r.samples, 0);
+      c.buffer = b;
+    }
+    return c.buffer;
+  }
+  function gainFor(key) {
+    const gv = settings.sounds[key].gameVolume;
+    return $('gameMix').checked && typeof gv === 'number' ? gv : 1;
+  }
+  function play(key, i, at) {
+    const a = audio();
+    const src = a.createBufferSource();
+    src.buffer = bufferFor(key, i || 0);
+    const g = a.createGain();
+    g.gain.value = gainFor(key);
+    src.connect(g).connect(master);
+    src.start(at || a.currentTime);
+    return src;
+  }
+  function setLoopButton(key, on) {
+    const c = ui[key];
+    if (c && c.playBtn) { c.playBtn.setAttribute('aria-pressed', String(on)); c.playBtn.textContent = on ? '■ Stop loop' : '▶ Play loop'; }
+  }
+  function stopLoop() {
+    if (loopSrc) { try { loopSrc.stop(); } catch (e) { /* already stopped */ } loopSrc = null; }
+    if (loopKey) setLoopButton(loopKey, false);
+    loopKey = null;
+  }
+  function startLoop(key) {
+    stopLoop();
+    const a = audio();
+    const src = a.createBufferSource();
+    src.buffer = bufferFor(key, ui[key] ? ui[key].index : 0);
+    src.loop = true;
+    const g = a.createGain();
+    g.gain.value = gainFor(key);
+    src.connect(g).connect(master);
+    src.start();
+    loopSrc = src;
+    loopKey = key;
+    setLoopButton(key, true);
+  }
+
+  // --------------------------------------------------------- scenarios
+  function runScenario(events) {
+    const a = audio();
+    if (BED && $('musicBed').checked && !loopSrc) startLoop(BED);
+    events.forEach(function (e) { bufferFor(e[1], e[2] || 0); });
+    const t0 = a.currentTime + 0.08;
+    events.forEach(function (e) { play(e[1], e[2] || 0, t0 + e[0] / 1000); });
+  }
+
+  // ------------------------------------------------------------ formatting
+  function decimals(step) {
+    const s = String(step);
+    return s.indexOf('.') < 0 ? 0 : Math.min(3, s.length - s.indexOf('.') - 1);
+  }
+  function fmt(spec, v) {
+    const unit = spec[4];
+    const d = decimals(spec[3]);
+    if (unit === 'note') return S.noteName(Math.round(v));
+    if (unit === 'choice') return (spec[6] && spec[6][Math.round(v) - spec[1]]) || String(Math.round(v));
+    if (unit === 'Hz') return v >= 1000 && d === 0 ? (v / 1000).toFixed(2) + ' kHz' : v.toFixed(d) + ' Hz';
+    if (unit === 'ms') return Math.round(v) + ' ms';
+    if (unit === 's') return v.toFixed(Math.max(2, d)) + ' s';
+    if (unit === '%') return v.toFixed(Math.max(1, d)) + '%';
+    if (unit === '×') return v.toFixed(2) + '×';
+    if (unit === 'dB') return (v > 0 ? '+' : '') + v.toFixed(d) + ' dB';
+    if (unit === 'semitones') return (v > 0 ? '+' : '') + Math.round(v) + ' semitones';
+    if (unit === 'count' || unit === 'notes' || unit === 'steps') return String(Math.round(v));
+    return v.toFixed(d) + (unit ? ' ' + unit : '');
+  }
+
+  // -------------------------------------------------------------- waves
+  function drawWave(canvas, samples) {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(10, Math.floor(canvas.clientWidth * dpr));
+    const h = Math.max(10, Math.floor(canvas.clientHeight * dpr));
+    canvas.width = w; canvas.height = h;
+    const g = canvas.getContext('2d');
+    g.clearRect(0, 0, w, h);
+    const color = getComputedStyle(document.documentElement).getPropertyValue('--wave').trim() || '#8d7bd6';
+    g.fillStyle = color;
+    const per = samples.length / w;
+    for (let x = 0; x < w; x++) {
+      let lo = 0, hi = 0;
+      const a = Math.floor(x * per), b = Math.min(samples.length, Math.floor((x + 1) * per) + 1);
+      for (let i = a; i < b; i++) { const s = samples[i]; if (s < lo) lo = s; if (s > hi) hi = s; }
+      const y1 = (1 - hi) * h / 2, y2 = (1 - lo) * h / 2;
+      g.fillRect(x, y1, 1, Math.max(1, y2 - y1));
+    }
+  }
+  function refreshCard(key) {
+    const c = ui[key];
+    if (!c) return;
+    const r = rendered(key, c.index).r;
+    drawWave(c.canvas, r.samples);
+    c.dur.textContent = (r.samples.length / r.sampleRate).toFixed(2) + ' s · ' + c.files[c.index] + '.wav';
+    for (const k in c.knobs) {
+      c.knobs[k].row.classList.toggle('changed', settings.sounds[key][k] !== BASE.sounds[key][k]);
+    }
+  }
+  const pending = {};
+  function scheduleRefresh(key, playAfter) {
+    clearTimeout(pending[key]);
+    pending[key] = setTimeout(function () {
+      refreshCard(key);
+      const isLoop = ui[key] && ui[key].loop;
+      if (isLoop && loopKey === key) startLoop(key);
+      if (playAfter && $('autoplay').checked) {
+        if (isLoop) { if (loopKey !== key) startLoop(key); } else play(key, ui[key].index);
+      }
+    }, playAfter ? 0 : 140);
+  }
+
+  // ---------------------------------------------------------- knob UI
+  function knob(container, id, spec, value, onInput, onChange) {
+    const row = document.createElement('div');
+    row.className = 'knob';
+    const label = document.createElement('label');
+    label.htmlFor = id;
+    label.textContent = spec[5];
+    const out = document.createElement('output');
+    out.htmlFor = id;
+    out.textContent = spec[4] === 'choice' ? '' : fmt(spec, value);
+    let input;
+    if (spec[4] === 'choice') {
+      input = document.createElement('select');
+      input.id = id;
+      for (let v = spec[1]; v <= spec[2]; v++) {
+        const o = document.createElement('option');
+        o.value = String(v);
+        o.textContent = fmt(spec, v);
+        input.append(o);
+      }
+      input.value = String(Math.round(value));
+      input.addEventListener('change', function () { const v = Number(input.value); onInput(v); onChange(v); });
+    } else {
+      input = document.createElement('input');
+      input.type = 'range'; input.id = id;
+      input.min = spec[1]; input.max = spec[2]; input.step = spec[3]; input.value = value;
+      input.addEventListener('input', function () { const v = Number(input.value); out.textContent = fmt(spec, v); onInput(v); });
+      input.addEventListener('change', function () { onChange(Number(input.value)); });
+    }
+    row.append(label, out, input);
+    container.append(row);
+    return { row: row, input: input, out: out, spec: spec };
+  }
+  function setKnob(k, v) {
+    k.input.value = k.spec[4] === 'choice' ? String(Math.round(v)) : v;
+    if (k.spec[4] !== 'choice') k.out.textContent = fmt(k.spec, v);
+  }
+
+  function buildGlobal() {
+    const box = $('globalKnobs');
+    box.innerHTML = '';
+    ui.__global = {};
+    const keys = Object.keys(S.GLOBAL_PARAMS);
+    $('setPanel').hidden = keys.length === 0;
+    keys.forEach(function (k) {
+      const spec = S.GLOBAL_PARAMS[k];
+      ui.__global[k] = knob(box, 'g-' + k, spec, settings.global[k],
+        function (v) { settings.global[k] = v; writeDraft(); },
+        function () {
+          stamp.__global++;
+          S.CATALOGUE.forEach(function (s) { refreshCard(s.key); });
+          if (loopSrc) startLoop(loopKey);
+          if ($('autoplay').checked && PREVIEW && ui[PREVIEW[0]]) play(PREVIEW[0], PREVIEW[1] || 0);
+        });
+    });
+  }
+
+  function buildCards() {
+    const host = $('groups');
+    host.innerHTML = '';
+    const groups = [];
+    S.CATALOGUE.forEach(function (s) { const g = s.group || 'Sounds'; if (groups.indexOf(g) < 0) groups.push(g); });
+    groups.forEach(function (gname) {
+      const sec = document.createElement('section');
+      sec.className = 'group';
+      const head = document.createElement('div');
+      head.className = 'group-title';
+      const h = document.createElement('h2');
+      h.textContent = gname;
+      head.append(h);
+      const grid = document.createElement('div');
+      grid.className = 'cards';
+      sec.append(head, grid);
+      host.append(sec);
+      S.CATALOGUE.filter(function (s) { return (s.group || 'Sounds') === gname; }).forEach(function (s) { grid.append(card(s)); });
+    });
+  }
+
+  function chipText(s, i) {
+    if (Array.isArray(s.chipLabels) && s.chipLabels[i]) return s.chipLabels[i];
+    return (s.chipLabel || 'Variant {n}').split('{n}').join(String(i + 1));
+  }
+
+  function card(s) {
+    const el = document.createElement('article');
+    el.className = 'card';
+    const c = { index: 0, files: s.files, knobs: {}, loop: !!s.loop };
+    ui[s.key] = c;
+    const h = document.createElement('h3');
+    h.textContent = s.name || s.key;
+    const when = document.createElement('p');
+    when.className = 'when';
+    when.textContent = s.when ? 'Plays: ' + s.when : '';
+    const files = document.createElement('p');
+    files.className = 'files';
+    files.textContent = s.files.length > 3 ? s.files[0] + ' … ' + s.files[s.files.length - 1] + '.wav' : s.files.map(function (f) { return f + '.wav'; }).join(', ');
+    const controls = document.createElement('div');
+    controls.className = 'row';
+    const playBtn = document.createElement('button');
+    playBtn.type = 'button';
+    playBtn.className = 'play primary';
+    if (s.loop) {
+      playBtn.textContent = '▶ Play loop';
+      playBtn.setAttribute('aria-pressed', 'false');
+      playBtn.addEventListener('click', function () { if (loopKey === s.key) stopLoop(); else startLoop(s.key); });
+      c.playBtn = playBtn;
+    } else {
+      playBtn.textContent = '▶ Play';
+      playBtn.addEventListener('click', function () { play(s.key, c.index); });
+    }
+    controls.append(playBtn);
+    if (s.files.length > 1) {
+      const chips = document.createElement('div');
+      chips.className = 'chips';
+      chips.setAttribute('role', 'group');
+      chips.setAttribute('aria-label', s.chipGroupLabel || 'Variant');
+      s.files.forEach(function (f, i) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'chip';
+        b.textContent = chipText(s, i);
+        b.title = f + '.wav';
+        b.setAttribute('aria-pressed', String(i === 0));
+        b.addEventListener('click', function () {
+          c.index = i;
+          chips.querySelectorAll('.chip').forEach(function (x, j) { x.setAttribute('aria-pressed', String(j === i)); });
+          refreshCard(s.key);
+          if (s.loop) startLoop(s.key); else play(s.key, i);
+        });
+        chips.append(b);
+      });
+      controls.append(chips);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.className = 'wave';
+    canvas.setAttribute('role', 'img');
+    canvas.setAttribute('aria-label', 'Waveform of ' + (s.name || s.key));
+    c.canvas = canvas;
+    const dur = document.createElement('p');
+    dur.className = 'dur';
+    c.dur = dur;
+    const knobs = document.createElement('div');
+    knobs.className = 'knobs';
+    for (const k in s.params || {}) {
+      const spec = s.params[k];
+      c.knobs[k] = knob(knobs, s.key + '-' + k, spec, settings.sounds[s.key][k],
+        function (v) { settings.sounds[s.key][k] = v; stamp[s.key] = (stamp[s.key] || 0) + 1; writeDraft(); scheduleRefresh(s.key, false); },
+        function () { scheduleRefresh(s.key, true); });
+    }
+    const foot = document.createElement('div');
+    foot.className = 'foot';
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.textContent = 'Reset this sound';
+    reset.addEventListener('click', function () {
+      settings.sounds[s.key] = Object.assign({}, BASE.sounds[s.key]);
+      stamp[s.key] = (stamp[s.key] || 0) + 1;
+      for (const k in c.knobs) setKnob(c.knobs[k], settings.sounds[s.key][k]);
+      writeDraft();
+      scheduleRefresh(s.key, true);
+    });
+    foot.append(dur, reset);
+    el.append(h);
+    if (s.when) el.append(when);
+    el.append(files, controls, canvas, knobs, foot);
+    return el;
+  }
+
+  function buildPads() {
+    const box = $('pads');
+    box.innerHTML = '';
+    if (!S.SCENARIOS.length) {
+      $('ctx-h').textContent = 'Listening';
+      $('ctx-hint').textContent = 'Options for how the sounds play on this page.';
+      box.hidden = true;
+    }
+    S.SCENARIOS.forEach(function (sc) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'pad';
+      const t = document.createElement('b'); t.textContent = sc.name;
+      const d = document.createElement('span'); d.textContent = sc.desc || '';
+      b.append(t, d);
+      b.addEventListener('click', function () { runScenario(sc.events || []); });
+      box.append(b);
+    });
+    $('musicBedLabel').hidden = !BED;
+  }
+
+  function setStatus(text, kind) {
+    const el = $('status');
+    el.textContent = text;
+    el.className = 'status' + (kind ? ' ' + kind : '');
+  }
+
+  function rebuild() {
+    buildGlobal();
+    buildCards();
+    // Draw the short sounds first; loops take longest, so they render just
+    // after the page is on screen.
+    requestAnimationFrame(function () {
+      S.CATALOGUE.forEach(function (s) { if (!s.loop) refreshCard(s.key); });
+      setTimeout(function () { LOOPS.forEach(function (s) { refreshCard(s.key); }); }, 250);
+    });
+  }
+  function bumpAll() { for (const s of S.CATALOGUE) stamp[s.key] = (stamp[s.key] || 0) + 1; stamp.__global++; }
+
+  // ---------------------------------------------------------- actions
+  $('resetAll').addEventListener('click', function () {
+    settings = clone(BASE);
+    bumpAll();
+    writeDraft();
+    stopLoop();
+    rebuild();
+    setStatus('Back to the sounds currently in the project.');
+  });
+  $('musicBed').addEventListener('change', function () { if ($('musicBed').checked) { if (BED) startLoop(BED); } else stopLoop(); });
+  $('gameMix').addEventListener('change', function () { if (loopSrc) startLoop(loopKey); });
+
+  function showFallback(payload, message) {
+    $('fallback').hidden = false;
+    $('json').value = JSON.stringify(payload, null, 2);
+    setStatus(message, 'err');
+  }
+
+  $('save').addEventListener('click', async function () {
+    const payload = { settings: clone(settings), note: $('note').value.trim(), savedAt: Date.now() };
+    if (!db) {
+      showFallback(payload, IN_CLAUDE ? 'Saving needs you to be signed in on claude.ai. Copy the settings below instead.' : 'Saving works when this page is opened on claude.ai. Copy the settings below and paste them to Claude.');
+      return;
+    }
+    setStatus('Saving…');
+    try {
+      await db.doc('saves/' + payload.savedAt).set(payload);
+      setStatus('Saved. Now tell Claude: "apply my sound settings".', 'ok');
+    } catch (e) {
+      showFallback(payload, 'Couldn\'t save (' + ((e && e.code) || 'error') + '). Copy the settings below instead.');
+    }
+  });
+
+  $('copy').addEventListener('click', function () {
+    const t = $('json');
+    try {
+      navigator.clipboard.writeText(t.value).then(function () { setStatus('Copied. Paste it to Claude.', 'ok'); }, function () { t.select(); setStatus('Selected: copy it with your keyboard or menu.'); });
+    } catch (e) { t.select(); }
+  });
+
+  $('download').addEventListener('click', async function () {
+    if (!window.JSZip) { setStatus('The zip library didn\'t load, so downloads are unavailable.', 'err'); return; }
+    setStatus('Building WAV files…');
+    try {
+      const zip = new window.JSZip();
+      S.CATALOGUE.forEach(function (s) {
+        s.files.forEach(function (f, i) { const r = rendered(s.key, i).r; zip.file(f + '.wav', S.wav(r.samples, r.sampleRate)); });
+      });
+      zip.file('mix.json', JSON.stringify(S.mix(settings), null, 2));
+      zip.file('settings.json', JSON.stringify(settings, null, 2));
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const filename = SLUG + '-sounds.zip';
+      if (downloads) {
+        await downloads.save({ filename: filename, data: blob });
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.append(a);
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      }
+      setStatus('Download ready.', 'ok');
+    } catch (e) {
+      setStatus(e && e.code === 'declined' ? 'Download cancelled.' : 'Couldn\'t prepare the download.', 'err');
+    }
+  });
+
+  // ------------------------------------------------- page capabilities
+  async function connect() {
+    // Opened as a plain file: downloads go through a normal link.
+    $('download').hidden = IN_CLAUDE;
+    if (!IN_CLAUDE) return;
+    try { db = await window.claude.use('db'); } catch (e) { db = null; }
+    try { downloads = await window.claude.use('downloads'); } catch (e) { downloads = null; }
+    $('download').hidden = !downloads;
+    if (db && !readDraft()) {
+      try {
+        const snap = await db.collection('saves').orderBy('savedAt', 'desc').limit(1).get();
+        if (!snap.empty) {
+          const last = snap.docs[0].data();
+          // Only a save newer than this build: older ones are already in CURRENT.
+          if (last && last.settings && last.savedAt > BUILT_AT) {
+            settings = S.normalize(last.settings);
+            bumpAll();
+            rebuild();
+            setStatus('Loaded your last saved settings.');
+          }
+        }
+      } catch (e) { /* keep the current settings */ }
+    }
+  }
+
+  buildPads();
+  rebuild();
+  window.addEventListener('resize', function () { S.CATALOGUE.forEach(function (s) { if (ui[s.key]) refreshCard(s.key); }); });
+  connect();
+})();
+</script>

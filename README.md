@@ -49,6 +49,10 @@ lib/
   ui/                        home, game, Journey map, spin wheel, themes, dialogs, effects
 assets/sounds/               generated sound effects and music
 tool/generate_sounds.py      synthesises every sound from scratch (numpy)
+tool/generate_icons.py       draws the app icon and store graphics (Pillow)
+tool/preflight.py            release checklist: run before every Play upload
+store/                       Play Store icon, feature graphic and screenshots
+docs/PLAY_STORE.md           policy audit, launch steps, form answers, listing text
 test/                        unit and widget tests (5 screen sizes)
 ```
 
@@ -117,6 +121,13 @@ python3 tool/generate_sounds.py
 ```
 
 ## Before publishing to Google Play: checklist
+
+The full policy audit and step-by-step launch guide is in
+[docs/PLAY_STORE.md](docs/PLAY_STORE.md). Before every upload, run:
+
+```bash
+python3 tool/preflight.py
+```
 
 1. **AdMob account**
    * Create the app and two ad units, *Rewarded* and *Interstitial*, at

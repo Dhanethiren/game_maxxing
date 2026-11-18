@@ -117,7 +117,9 @@ class _SpinDialogState extends State<_SpinDialog>
     final theme = app.theme;
     final p = app.profile;
     final s = uiScale(context);
-    final wheel = min(300 * s, MediaQuery.sizeOf(context).width - 96);
+    final screen = MediaQuery.sizeOf(context);
+    // Fit the wheel to both width and height so the dialog fits short phones.
+    final wheel = min(min(300 * s, screen.width - 96), screen.height * 0.4);
 
     final Widget action;
     if (_spinning) {
@@ -130,11 +132,23 @@ class _SpinDialogState extends State<_SpinDialog>
         onPressed: () => _spin(extra: false),
       );
     } else if (p.extraSpinAvailable && app.offers.ads.isReady) {
-      action = SoftButton(
-        label: 'Spin again',
-        icon: Icons.play_circle_outline_rounded,
-        color: const Color(0xFFE9B53F),
-        onPressed: () => _spin(extra: true),
+      // AdMob policy: random rewards must say so before the ad plays.
+      action = Column(
+        children: [
+          Text(
+            'Watch a short ad for one more spin.\n'
+            'Prize is random: 10 to 200 coins.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13 * s, color: theme.textSoft),
+          ),
+          SizedBox(height: 8 * s),
+          SoftButton(
+            label: 'Watch ad & spin',
+            icon: Icons.play_circle_outline_rounded,
+            color: const Color(0xFFE9B53F),
+            onPressed: () => _spin(extra: true),
+          ),
+        ],
       );
     } else {
       action = SoftButton(
@@ -170,7 +184,7 @@ class _SpinDialogState extends State<_SpinDialog>
                     Text(
                       _prize != null
                           ? 'You won $_prize coins!'
-                          : 'Win up to 200 coins',
+                          : 'Free daily spin: 10 to 200 coins',
                       style: TextStyle(
                         fontSize: 16 * s,
                         fontWeight: _prize != null

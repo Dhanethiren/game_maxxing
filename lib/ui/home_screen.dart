@@ -66,8 +66,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final levelEnd = Progression.xpForLevel(level + 1);
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: theme.background,
+      body: ThemedBackground(
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -133,6 +132,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                   fontSize: 32 * s,
                                   fontWeight: FontWeight.w900,
                                   color: theme.text,
+                                  shadows: titleShadows(theme),
                                 ),
                               ),
                             ),
@@ -150,6 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             fontSize: 40 * s,
                             fontWeight: FontWeight.w900,
                             color: theme.text,
+                            shadows: titleShadows(theme),
                           ),
                         ),
                       ),

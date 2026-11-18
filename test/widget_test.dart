@@ -239,9 +239,12 @@ void main() {
     final services = makeServices();
     await tester.pumpWidget(CalmGridApp(services: services));
     await tester.pump();
+    await tester.ensureVisible(find.text('Daily spin'));
+    await tester.pump();
     await tester.tap(find.text('Daily spin'));
     await tester.pump(const Duration(seconds: 1));
 
+    await tester.ensureVisible(find.text('Spin'));
     await tester.tap(find.text('Spin'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
@@ -251,7 +254,9 @@ void main() {
     expect(services.profile.freeSpinAvailable, isFalse);
     expect(find.textContaining('You won'), findsOneWidget);
 
-    await tester.tap(find.text('Spin again'));
+    expect(find.textContaining('Prize is random'), findsOneWidget);
+    await tester.ensureVisible(find.text('Watch ad & spin'));
+    await tester.tap(find.text('Watch ad & spin'));
     // Simulated ad, then the 3.8 s wheel animation.
     for (var i = 0; i < 14; i++) {
       await tester.pump(const Duration(milliseconds: 500));

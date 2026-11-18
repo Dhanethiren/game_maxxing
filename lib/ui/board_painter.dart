@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
 
@@ -6,6 +7,7 @@ import '../game/board.dart';
 import '../game/piece.dart';
 import 'block_painter.dart';
 import 'game_theme.dart';
+import 'widgets.dart';
 
 /// Everything the board needs to draw one frame.
 class BoardVisuals {
@@ -69,9 +71,14 @@ class BoardPainter extends CustomPainter {
     final pad = cell * framePadding;
     final gap = cell * 0.06;
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, Radius.circular(cell * 0.35)),
-      Paint()..color = theme.board,
+    // Raised frame + recessed well + sunken empty cells, drawn once per
+    // theme and size, then reused every frame.
+    final bg = _background(size, n, cell, pad, gap);
+    canvas.drawImageRect(
+      bg,
+      Rect.fromLTWH(0, 0, bg.width.toDouble(), bg.height.toDouble()),
+      Offset.zero & size,
+      Paint()..filterQuality = FilterQuality.medium,
     );
 
     Rect cellRect(int r, int c, [double scale = 1]) {
@@ -89,8 +96,6 @@ class BoardPainter extends CustomPainter {
       );
     }
 
-    final emptyPaint = Paint()..color = theme.emptyCell;
-    final emptyRadius = Radius.circular(cell * 0.2);
     final ghostColor = visuals.ghostColor == null
         ? null
         : theme.blocks[visuals.ghostColor!];
@@ -99,10 +104,6 @@ class BoardPainter extends CustomPainter {
       for (var c = 0; c < n; c++) {
         final pos = Cell(r, c);
         final value = board.at(r, c);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(cellRect(r, c), emptyRadius),
-          emptyPaint,
-        );
 
         if (ghostColor != null && visuals.previewClear.contains(pos)) {
           // Line about to clear: show it glowing in the dragged piece's colour.
@@ -167,6 +168,102 @@ class BoardPainter extends CustomPainter {
         );
       }
     }
+  }
+
+  static final _bgCache = <(String, int, int), ui.Image>{};
+
+  ui.Image _background(Size size, int n, double cell, double pad, double gap) {
+    final px = (size.width * dpr).round().clamp(16, 4096);
+    return _bgCache.putIfAbsent((theme.id, px, n), () {
+      if (_bgCache.length > 12) _bgCache.clear();
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder)..scale(px / size.width);
+      final outer = RRect.fromRectAndRadius(
+        Offset.zero & size,
+        Radius.circular(cell * 0.35),
+      );
+      final light = theme.dark ? 0.06 : 0.0;
+      // Frame: lit from the top.
+      canvas.drawRRect(
+        outer,
+        Paint()
+          ..shader = LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white.withValues(alpha: theme.dark ? 0.14 : 0.85),
+              theme.board.withValues(alpha: theme.dark ? 0.2 : 0.55),
+            ],
+          ).createShader(outer.outerRect),
+      );
+      // Well: slightly darker, with an inner shadow along the top edge.
+      final well = RRect.fromRectAndRadius(
+        Rect.fromLTWH(
+          pad * 0.55,
+          pad * 0.55,
+          size.width - pad * 1.1,
+          size.height - pad * 1.1,
+        ),
+        Radius.circular(cell * 0.28),
+      );
+      canvas.drawRRect(
+        well,
+        Paint()
+          ..color = shiftColor(
+            theme.backgroundTop,
+            theme.dark ? 0.04 : -0.04,
+          ).withValues(alpha: theme.dark ? 0.55 : 0.6),
+      );
+      canvas
+        ..save()
+        ..clipRRect(well)
+        ..drawRRect(
+          well.shift(Offset(0, -cell * 0.08)).inflate(cell * 0.06),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = cell * 0.18
+            ..color = Colors.black.withValues(alpha: theme.dark ? 0.35 : 0.08)
+            ..maskFilter = MaskFilter.blur(BlurStyle.normal, cell * 0.08),
+        )
+        ..restore();
+      // Empty cells: sunken (shadow at the top, light at the bottom).
+      final radius = Radius.circular(cell * 0.2);
+      for (var r = 0; r < n; r++) {
+        for (var c = 0; c < n; c++) {
+          final rect = Rect.fromLTWH(
+            pad + c * cell + gap / 2,
+            pad + r * cell + gap / 2,
+            cell - gap,
+            cell - gap,
+          );
+          final rr = RRect.fromRectAndRadius(rect, radius);
+          canvas.drawRRect(
+            rr.shift(Offset(0, cell * 0.035)),
+            Paint()
+              ..color = Colors.white.withValues(alpha: theme.dark ? 0.06 : 0.7),
+          );
+          canvas.drawRRect(rr, Paint()..color = theme.emptyCell);
+          // Inner shadow along the top edge: the cell looks pressed in.
+          canvas.drawRRect(
+            rr,
+            Paint()
+              ..shader = LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0, 0.45],
+                colors: [
+                  shiftColor(
+                    theme.accent,
+                    -0.3,
+                  ).withValues(alpha: theme.dark ? 0.35 : 0.13 + light),
+                  Colors.transparent,
+                ],
+              ).createShader(rect),
+          );
+        }
+      }
+      return recorder.endRecording().toImageSync(px, px);
+    });
   }
 
   @override

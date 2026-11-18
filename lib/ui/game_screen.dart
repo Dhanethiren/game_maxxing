@@ -591,7 +591,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final theme = AppScope.of(context).theme;
+    AppScope.of(context); // rebuild when the theme or settings change
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -599,8 +599,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         _showGameOver ? _goHome() : _pause();
       },
       child: Scaffold(
-        body: DecoratedBox(
-          decoration: theme.background,
+        body: ThemedBackground(
           child: SafeArea(
             child: Stack(
               key: _stackKey,
@@ -714,8 +713,19 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       style: TextStyle(
                         fontSize: 38 * s,
                         height: 1.1,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w900,
                         color: theme.text,
+                        shadows: [
+                          Shadow(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            offset: const Offset(0, 1.5),
+                          ),
+                          Shadow(
+                            color: theme.accent.withValues(alpha: 0.25),
+                            offset: const Offset(0, 4),
+                            blurRadius: 8,
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -833,26 +843,34 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          RepaintBoundary(
-            child: CustomPaint(
-              key: _boardKey,
-              size: Size.square(side),
-              painter: BoardPainter(
-                board: game.board,
-                theme: app.theme,
-                dpr: MediaQuery.devicePixelRatioOf(context),
-                visuals: BoardVisuals(
-                  ghost: ghost,
-                  ghostColor: ghost.isEmpty ? null : hoverPiece!.colorIndex,
-                  previewClear: ghost.isEmpty ? const {} : _previewClear,
-                  clearing: _clearing,
-                  clearOrigin: _clearOrigin,
-                  clearProgress: _clearAnim.isAnimating ? _clearAnim.value : 1,
-                  settling: _settling,
-                  settleProgress: _settleAnim.isAnimating
-                      ? _settleAnim.value
-                      : 1,
-                  gems: game.gems,
+          DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(side * 0.04),
+              boxShadow: liftShadow(app.theme.accent, strength: 1.3),
+            ),
+            child: RepaintBoundary(
+              child: CustomPaint(
+                key: _boardKey,
+                size: Size.square(side),
+                painter: BoardPainter(
+                  board: game.board,
+                  theme: app.theme,
+                  dpr: MediaQuery.devicePixelRatioOf(context),
+                  visuals: BoardVisuals(
+                    ghost: ghost,
+                    ghostColor: ghost.isEmpty ? null : hoverPiece!.colorIndex,
+                    previewClear: ghost.isEmpty ? const {} : _previewClear,
+                    clearing: _clearing,
+                    clearOrigin: _clearOrigin,
+                    clearProgress: _clearAnim.isAnimating
+                        ? _clearAnim.value
+                        : 1,
+                    settling: _settling,
+                    settleProgress: _settleAnim.isAnimating
+                        ? _settleAnim.value
+                        : 1,
+                    gems: game.gems,
+                  ),
                 ),
               ),
             ),
@@ -938,6 +956,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             cells: [for (final c in piece.cells) (c.row, c.col)],
             color: app.theme.blocks[piece.colorIndex],
             cellSize: _boardCell,
+            lift: 2,
           ),
         ),
       ),
@@ -972,10 +991,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final theme = app.theme;
     final s = uiScale(context);
     final decision = _doubleDecision;
+    // AdMob policy: say that an ad plays and what it gives, before it plays.
     final doubleLabel = switch (decision?.variant) {
-      OfferVariant.progress => 'Get +$_coinsEarned more coins',
+      OfferVariant.progress => 'Watch ad: +$_coinsEarned coins',
       OfferVariant.calm => 'Double coins with a short ad',
-      _ => '×2 coins',
+      _ => 'Watch ad: ×2 coins',
     };
     return Container(
       color: Colors.black.withValues(alpha: 0.25),

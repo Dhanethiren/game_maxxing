@@ -22,8 +22,7 @@ class ThemesScreen extends StatelessWidget {
     final freeLeft = app.profile.freeCoinAdsLeft;
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: theme.background,
+      body: ThemedBackground(
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(

@@ -69,8 +69,7 @@ class _JourneyScreenState extends State<JourneyScreen>
     }
 
     return Scaffold(
-      body: DecoratedBox(
-        decoration: theme.background,
+      body: ThemedBackground(
         child: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -211,22 +210,35 @@ class _LevelNode extends StatelessWidget {
       _NodeState.locked => theme.emptyCell,
     };
 
+    final locked = state == _NodeState.locked;
     Widget node = Container(
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: color,
+        // Raised "coin": lit from the top with a solid darker edge below,
+        // matching the 3D buttons.
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: locked
+              ? [Colors.white.withValues(alpha: 0.9), theme.emptyCell]
+              : [shiftColor(color, 0.1), color],
+        ),
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 3 * s),
-        boxShadow: state == _NodeState.locked
-            ? null
-            : [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.4),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
+        boxShadow: [
+          BoxShadow(
+            color: locked
+                ? theme.textSoft.withValues(alpha: 0.25)
+                : shiftColor(color, -0.18),
+            offset: Offset(0, 4 * s),
+          ),
+          BoxShadow(
+            color: (locked ? theme.textSoft : color).withValues(alpha: 0.3),
+            blurRadius: 12,
+            offset: Offset(0, 7 * s),
+          ),
+        ],
       ),
       alignment: Alignment.center,
       child: state == _NodeState.locked

@@ -288,7 +288,7 @@ Future<int> showDailyReward(BuildContext context) async {
   final decision = app.offers.decide(OfferPlacement.dailyBonus);
   final adLabel = switch (decision.variant) {
     OfferVariant.quick => 'Watch ad: ×2',
-    OfferVariant.progress => 'Get ${base * 2} instead',
+    OfferVariant.progress => 'Watch ad: get ${base * 2}',
     OfferVariant.calm => 'Double it with a short ad',
   };
   var answered = false;

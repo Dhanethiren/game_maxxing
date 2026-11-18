@@ -98,12 +98,17 @@ class PieceArt extends StatelessWidget {
     required this.color,
     required this.cellSize,
     this.opacity = 1,
+    this.lift = 1,
   });
 
   final List<(int, int)> cells;
   final Color color;
   final double cellSize;
   final double opacity;
+
+  /// Height of the soft shadow under the piece: 0 = none, 1 = resting in the
+  /// tray, 2 = picked up.
+  final double lift;
 
   @override
   Widget build(BuildContext context) {
@@ -120,23 +125,51 @@ class PieceArt extends StatelessWidget {
         cellSize,
         opacity,
         MediaQuery.devicePixelRatioOf(context),
+        lift,
       ),
     );
   }
 }
 
 class _PiecePainter extends CustomPainter {
-  _PiecePainter(this.cells, this.color, this.cell, this.opacity, this.dpr);
+  _PiecePainter(
+    this.cells,
+    this.color,
+    this.cell,
+    this.opacity,
+    this.dpr,
+    this.lift,
+  );
 
   final List<(int, int)> cells;
   final Color color;
   final double cell;
   final double opacity;
   final double dpr;
+  final double lift;
 
   @override
   void paint(Canvas canvas, Size size) {
     final gap = cell * 0.06;
+    if (lift > 0) {
+      final shadow = Paint()
+        ..color = Colors.black.withValues(alpha: (0.08 + 0.05 * lift) * opacity)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, cell * 0.09 * lift);
+      for (final (r, c) in cells) {
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromLTWH(
+              c * cell + gap / 2,
+              r * cell + gap / 2 + cell * 0.1 * lift,
+              cell - gap,
+              cell - gap,
+            ),
+            Radius.circular(cell * 0.22),
+          ),
+          shadow,
+        );
+      }
+    }
     for (final (r, c) in cells) {
       BlockArt.draw(
         canvas,
@@ -158,5 +191,6 @@ class _PiecePainter extends CustomPainter {
       old.color != color ||
       old.cell != cell ||
       old.opacity != opacity ||
+      old.lift != lift ||
       old.cells != cells;
 }

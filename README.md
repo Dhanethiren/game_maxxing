@@ -1,12 +1,30 @@
 # Calm Grid
 
 A calm, no-timer block puzzle made to help people unwind. Drag pieces onto an
-8×8 grid and fill rows or columns to clear them. There's no clock and no
-pressure, just soft colours and gentle feedback.
+8×8 grid and fill rows or columns to clear them.
 
-Monetised with **opt-in rewarded ads**. After a loss the player can watch a
-short ad to revive once. A small **on-device ML model** learns how best to
-present that offer to each player.
+**Features**
+- **Home screen**: Play or Continue, best score, level, coins, the daily
+  reward and today's goals.
+- **Satisfying clears**: glossy blocks, a ghost preview while dragging, a
+  clear wave, particles, praise text, a gentle screen shake, haptics, and
+  pentatonic chimes that climb with each combo.
+- **Reasons to come back**:
+  - a 7-day login streak,
+  - 3 daily goals,
+  - levels and XP,
+  - coins and 6 unlockable colour themes,
+  - auto-saving after every move.
+- **Ads**:
+  - opt-in rewarded ads for revive, double coins, double daily reward and free
+    coins,
+  - rare, strictly capped interstitials,
+  - an on-device ML model that learns how to present each offer.
+- **Every screen**: from 320×568 phones to tablets, in portrait and landscape,
+  on Android 7.0+.
+
+The research behind every design decision, with sources, is in
+[docs/RESEARCH.md](docs/RESEARCH.md).
 
 Built with Flutter (Android + iOS).
 
@@ -14,13 +32,18 @@ Built with Flutter (Android + iOS).
 
 ```
 lib/
-  main.dart                  app entry
-  game/                      rules: pieces, board, scoring (no UI, fully tested)
+  main.dart                  app start-up, error reporting
+  app/app_scope.dart         shared services (profile, ads, sound), screen scaling
+  game/                      rules: pieces, board, scoring, fair dealer (no UI, tested)
   ml/offer_optimizer.dart    on-device contextual bandit (LinUCB)
-  ads/ad_service.dart        AdMob rewarded ads + Google consent form (UMP)
-  services/                  player profile storage, glue between game/ML/ads
-  ui/                        game screen, revive dialog, theme
-test/                        unit + widget tests
+  ads/ad_service.dart        AdMob rewarded + interstitial ads, consent form (UMP)
+  ads/ad_policy.dart         when an interstitial may appear
+  audio/sound_service.dart   sound effects and music
+  services/                  player profile, progression (levels, streaks, missions)
+  ui/                        home, game, themes, dialogs, block art, effects
+assets/sounds/               generated sound effects and music
+tool/generate_sounds.py      synthesises every sound from scratch (numpy)
+test/                        unit and widget tests (5 screen sizes)
 ```
 
 ## How the ad-offer ML works
@@ -32,7 +55,10 @@ entirely on the phone and needs no server or training step.
   score is to the player's best, time spent in the game, games played this
   session, ads already watched (fatigue), time since the last ad, the player's
   past accept rate, and how full the board is.
-* **Actions:** it chooses one of three ways to present the offer:
+* **Placements:** revive, double coins and double daily reward. Each one has
+  its own learned weights.
+* **Actions:** it chooses one of three ways to present the offer. For revive
+  these are:
   * `quick`: "Continue?"
   * `progress`: "You're 92% of the way to your best"
   * `calm`: appears after a short pause with "Take a breath…"
@@ -54,6 +80,7 @@ accept count.
 ### Adding another reward later
 
 1. Add a value to `OfferPlacement` in `lib/ml/offer_optimizer.dart`.
+   It already has `revive`, `doubleCoins` and `dailyBonus`.
 2. Where the offer should appear, call `offers.optimizer.shouldOffer(...)`. If
    it returns true, call `optimizer.choose(...)`, show your button, then call
    `offers.recordAnswer(...)` and `offers.watchAd()`.
@@ -76,11 +103,22 @@ flutter run
 
 On web and desktop the ads are simulated. On a phone they're real **test** ads.
 
+To change the sounds, edit `tool/generate_sounds.py` and run it. It needs
+numpy.
+
+```bash
+python3 tool/generate_sounds.py
+```
+
 ## Before publishing to Google Play: checklist
 
 1. **AdMob account**
-   * Create the app and a *Rewarded* ad unit at <https://apps.admob.com>.
-   * Put the IDs in `lib/ads/ad_service.dart` (`_releaseRewarded…`).
+   * Create the app and two ad units, *Rewarded* and *Interstitial*, at
+     <https://apps.admob.com>.
+   * Put the IDs in `lib/ads/ad_service.dart` (`_releaseRewarded…` and
+     `_releaseInterstitial…`).
+   * To ship with rewarded ads only, set `enabled: false` in
+     `InterstitialPolicy` (`lib/ads/ad_policy.dart`).
    * Put the app ID in `android/app/src/main/AndroidManifest.xml` and
      `ios/Runner/Info.plist`.
    * Create a GDPR consent message in AdMob → *Privacy & messaging*. The code

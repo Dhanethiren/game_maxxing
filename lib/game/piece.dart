@@ -33,14 +33,25 @@ class Piece {
   int get rows => cells.map((c) => c.row).reduce(max) + 1;
   int get cols => cells.map((c) => c.col).reduce(max) + 1;
   int get size => cells.length;
+
+  Map<String, dynamic> toJson() => {
+    'c': [
+      for (final c in cells) [c.row, c.col],
+    ],
+    'k': colorIndex,
+  };
+
+  static Piece fromJson(Map<String, dynamic> json) => Piece([
+    for (final c in json['c'] as List) Cell((c as List)[0] as int, c[1] as int),
+  ], json['k'] as int);
 }
 
 /// Builds a shape from an ASCII drawing, e.g. `['##', '#.']`.
 List<Cell> _shape(List<String> rows) => [
-      for (var r = 0; r < rows.length; r++)
-        for (var c = 0; c < rows[r].length; c++)
-          if (rows[r][c] == '#') Cell(r, c),
-    ];
+  for (var r = 0; r < rows.length; r++)
+    for (var c = 0; c < rows[r].length; c++)
+      if (rows[r][c] == '#') Cell(r, c),
+];
 
 /// Every shape the game can deal, with a relative weight.
 ///

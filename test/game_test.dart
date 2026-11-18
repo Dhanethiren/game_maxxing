@@ -100,4 +100,91 @@ void main() {
       expect(g.tray.every((p) => p != null), isTrue);
     });
   });
+
+  group('Scoring & combos', () {
+    GameState emptyGame() {
+      final g = GameState(random: Random(5));
+      g.board.clear();
+      return g;
+    }
+
+    test('combo survives up to 2 non-clearing moves, then resets', () {
+      final g = emptyGame();
+      // Fill rows 0..2 except the last cell, so singles can clear them.
+      for (var r = 0; r < 3; r++) {
+        for (var c = 0; c < 7; c++) {
+          g.board.setCell(r, c, 0);
+        }
+      }
+      void put(int r, int c) {
+        g.tray[0] = single;
+        expect(g.place(0, r, c), isTrue);
+      }
+
+      put(0, 7);
+      expect(g.combo, 1);
+      put(7, 0); // no clear
+      put(7, 2); // no clear
+      put(1, 7); // clear within grace -> combo 2
+      expect(g.combo, 2);
+      expect(g.lastEvent!.points, 1 + GameState.clearPoints(1, 2));
+      put(7, 4);
+      put(7, 6);
+      put(6, 0); // 3rd non-clearing move: combo lost
+      expect(g.combo, 0);
+      put(2, 7);
+      expect(g.combo, 1);
+    });
+
+    test('perfect clear gives a bonus and praise', () {
+      final g = emptyGame();
+      for (var c = 0; c < 7; c++) {
+        g.board.setCell(4, c, 2);
+      }
+      g.tray[0] = single;
+      g.place(0, 4, 7);
+      final e = g.lastEvent!;
+      expect(e.perfect, isTrue);
+      expect(e.praise, 'Perfect Clear!');
+      expect(
+        e.points,
+        1 + GameState.clearPoints(1, 1) + GameState.perfectClearBonus,
+      );
+      expect(e.clearedColors.length, 8);
+    });
+
+    test('praise grows with lines cleared', () {
+      PlaceEvent ev(int lines) => PlaceEvent(
+        id: 1,
+        placedCells: const {},
+        colorIndex: 0,
+        clearedColors: const {},
+        lines: lines,
+        combo: 1,
+        points: 0,
+        perfect: false,
+        origin: const Cell(0, 0),
+      );
+      expect(ev(0).praise, isNull);
+      expect(ev(1).praise, 'Nice');
+      expect(ev(2).praise, 'Great!');
+      expect(ev(3).praise, 'Excellent!');
+      expect(ev(5).praise, 'Amazing!');
+    });
+
+    test('save and restore round-trips the whole game', () {
+      final g = GameState(random: Random(9));
+      final i = g.tray.indexWhere((p) => p != null);
+      g.place(i, 0, 0);
+      final copy = GameState.fromJson(g.toJson())!;
+      expect(copy.board.cells, g.board.cells);
+      expect(copy.score, g.score);
+      expect(
+        [for (final p in copy.tray) p?.cells],
+        [for (final p in g.tray) p?.cells],
+      );
+      expect(GameState.fromJson({'v': 99}), isNull);
+      expect(GameState.fromJson({'v': 1, 'size': 8, 'board': []}), isNull);
+    });
+  });
 }

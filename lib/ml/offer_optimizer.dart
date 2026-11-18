@@ -1,24 +1,37 @@
 import 'dart:convert';
 import 'dart:math';
 
-/// Where in the game a rewarded-ad offer is shown.
-///
-/// Only [revive] exists today. To add a new reward (reroll, undo, double
-/// coins...), add a value here and call [OfferOptimizer.choose] /
-/// [OfferOptimizer.shouldOffer] at that point in the game. The model learns a
+/// Where in the game a rewarded-ad offer is shown. The model learns a
 /// separate set of weights for every placement automatically.
-enum OfferPlacement { revive }
+///
+/// To add a new reward: add a value here, call [OfferOptimizer.choose] (or
+/// [OfferOptimizer.shouldOffer] for optional pop-ups) where it appears, and
+/// record the answer with [OfferOptimizer.record].
+enum OfferPlacement {
+  /// "Watch an ad to continue" after losing (once per game).
+  revive,
+
+  /// "Double the coins you just earned" on the game-over screen.
+  doubleCoins,
+
+  /// "Double today's login reward".
+  dailyBonus,
+}
 
 /// The different ways an offer can be presented. The model learns which one
 /// each player is most likely to say yes to, in each situation.
+///
+/// Each placement words the variants in its own way (see the UI), e.g. for
+/// revive: quick = "Continue?", progress = "You're 90% of the way to your
+/// best", calm = appears after a short pause with "Take a breath...".
 enum OfferVariant {
-  /// Shown straight away: "Continue?".
+  /// Short and direct.
   quick,
 
-  /// Highlights the player's progress: "You're 90% of the way to your best".
+  /// Emphasises what the player gains or is close to.
   progress,
 
-  /// Appears after a short pause with a soft message: "Take a breath...".
+  /// Soft, low-pressure wording.
   calm,
 }
 
@@ -91,17 +104,20 @@ class OfferDecision {
 /// One LinUCB arm: a linear model with an exploration bonus.
 class _Arm {
   _Arm(int d, double prior)
-      : aInv = List.generate(d, (i) => List.generate(d, (j) => i == j ? 1.0 : 0.0)),
-        b = List.generate(d, (i) => i == 0 ? prior : 0.0);
+    : aInv = List.generate(
+        d,
+        (i) => List.generate(d, (j) => i == j ? 1.0 : 0.0),
+      ),
+      b = List.generate(d, (i) => i == 0 ? prior : 0.0);
 
   _Arm.fromJson(Map<String, dynamic> json)
-      : aInv = [
-          for (final row in json['aInv'] as List)
-            [for (final v in row as List) (v as num).toDouble()],
-        ],
-        b = [for (final v in json['b'] as List) (v as num).toDouble()],
-        pulls = json['pulls'] as int? ?? 0,
-        rewards = json['rewards'] as int? ?? 0;
+    : aInv = [
+        for (final row in json['aInv'] as List)
+          [for (final v in row as List) (v as num).toDouble()],
+      ],
+      b = [for (final v in json['b'] as List) (v as num).toDouble()],
+      pulls = json['pulls'] as int? ?? 0,
+      rewards = json['rewards'] as int? ?? 0;
 
   /// Inverse of A = I + sum(x x^T), kept up to date with Sherman–Morrison.
   final List<List<double>> aInv;
@@ -132,8 +148,12 @@ class _Arm {
     if (reward > 0) rewards++;
   }
 
-  Map<String, dynamic> toJson() =>
-      {'aInv': aInv, 'b': b, 'pulls': pulls, 'rewards': rewards};
+  Map<String, dynamic> toJson() => {
+    'aInv': aInv,
+    'b': b,
+    'pulls': pulls,
+    'rewards': rewards,
+  };
 }
 
 /// On-device contextual bandit (LinUCB) that learns when and how to present
@@ -145,7 +165,7 @@ class _Arm {
 ///   because annoyed players uninstall, which costs more than one ad.
 class OfferOptimizer {
   OfferOptimizer({this.alpha = 0.5, this.prior = 0.3, Random? random})
-      : _random = random ?? Random();
+    : _random = random ?? Random();
 
   final double alpha;
   final double prior;
@@ -162,18 +182,26 @@ class OfferOptimizer {
   int _optionalOffersThisSession = 0;
 
   _Arm _arm(OfferPlacement p, OfferVariant v) => _arms.putIfAbsent(
-      '${p.name}:${v.name}', () => _Arm(OfferContext.featureCount, prior));
+    '${p.name}:${v.name}',
+    () => _Arm(OfferContext.featureCount, prior),
+  );
 
   /// Picks the presentation most likely to be accepted, with some exploration.
-  OfferDecision choose(OfferPlacement placement, OfferContext context,
-      {List<OfferVariant> allowed = OfferVariant.values}) {
+  OfferDecision choose(
+    OfferPlacement placement,
+    OfferContext context, {
+    List<OfferVariant> allowed = OfferVariant.values,
+  }) {
     final x = context.toFeatures();
     OfferVariant? best;
     var bestScore = double.negativeInfinity;
     for (final v in allowed) {
       final arm = _arm(placement, v);
       // Tiny random jitter breaks ties between untouched arms.
-      final ucb = arm.mean(x) + alpha * arm.uncertainty(x) + _random.nextDouble() * 1e-6;
+      final ucb =
+          arm.mean(x) +
+          alpha * arm.uncertainty(x) +
+          _random.nextDouble() * 1e-6;
       if (ucb > bestScore) {
         bestScore = ucb;
         best = v;
@@ -188,15 +216,22 @@ class OfferOptimizer {
   }
 
   /// The model's best guess (0..1) that the player accepts this offer.
-  double predict(OfferPlacement placement, OfferVariant variant, OfferContext context) =>
-      _arm(placement, variant).mean(context.toFeatures()).clamp(0.0, 1.0);
+  double predict(
+    OfferPlacement placement,
+    OfferVariant variant,
+    OfferContext context,
+  ) => _arm(placement, variant).mean(context.toFeatures()).clamp(0.0, 1.0);
 
   /// For optional rewards (not revive): should an offer be shown at all right now?
   ///
   /// Shows it only if the best variant's predicted acceptance clears
   /// [threshold] and the frequency caps allow it.
-  bool shouldOffer(OfferPlacement placement, OfferContext context,
-      {double threshold = 0.25, DateTime? now}) {
+  bool shouldOffer(
+    OfferPlacement placement,
+    OfferContext context, {
+    double threshold = 0.25,
+    DateTime? now,
+  }) {
     now ??= DateTime.now();
     if (_optionalOffersThisSession >= maxOptionalOffersPerSession) return false;
     final last = _lastOptionalOfferAt;
@@ -216,20 +251,22 @@ class OfferOptimizer {
 
   /// Teaches the model what happened. [accepted] = the player tapped "Watch ad".
   void record(OfferDecision decision, {required bool accepted}) {
-    _arm(decision.placement, decision.variant)
-        .update(decision.features, accepted ? 1.0 : 0.0);
+    _arm(
+      decision.placement,
+      decision.variant,
+    ).update(decision.features, accepted ? 1.0 : 0.0);
   }
 
   /// Per-variant stats, handy for a debug screen.
   Map<String, ({int shown, int accepted})> stats() => {
-        for (final e in _arms.entries)
-          e.key: (shown: e.value.pulls, accepted: e.value.rewards),
-      };
+    for (final e in _arms.entries)
+      e.key: (shown: e.value.pulls, accepted: e.value.rewards),
+  };
 
   String toJson() => jsonEncode({
-        'v': 1,
-        'arms': {for (final e in _arms.entries) e.key: e.value.toJson()},
-      });
+    'v': 1,
+    'arms': {for (final e in _arms.entries) e.key: e.value.toJson()},
+  });
 
   /// Restores learned weights. Silently starts fresh on bad or old data.
   void loadJson(String? json) {
@@ -257,5 +294,6 @@ double _dot(List<double> a, List<double> b) {
   return s;
 }
 
-List<double> _matVec(List<List<double>> m, List<double> v) =>
-    [for (final row in m) _dot(row, v)];
+List<double> _matVec(List<List<double>> m, List<double> v) => [
+  for (final row in m) _dot(row, v),
+];

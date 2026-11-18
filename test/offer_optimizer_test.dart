@@ -3,7 +3,8 @@ import 'dart:math';
 import 'package:calm_grid/ml/offer_optimizer.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-OfferContext ctx({int score = 100, int best = 200, int adsWatched = 0}) => OfferContext(
+OfferContext ctx({int score = 100, int best = 200, int adsWatched = 0}) =>
+    OfferContext(
       score: score,
       bestScore: best,
       gameDuration: const Duration(minutes: 3),
@@ -37,8 +38,10 @@ void main() {
     }
     // Over the last 200 offers it should mostly pick the winner.
     expect(progressPicks, greaterThan(150));
-    expect(opt.predict(OfferPlacement.revive, OfferVariant.progress, ctx()),
-        closeTo(0.7, 0.15));
+    expect(
+      opt.predict(OfferPlacement.revive, OfferVariant.progress, ctx()),
+      closeTo(0.7, 0.15),
+    );
   });
 
   test('learns context: near a personal best vs far from it', () {
@@ -56,8 +59,14 @@ void main() {
       };
       opt.record(d, accepted: rnd.nextDouble() < p);
     }
-    expect(opt.choose(OfferPlacement.revive, near).variant, OfferVariant.progress);
-    expect(opt.choose(OfferPlacement.revive, far).variant, isNot(OfferVariant.progress));
+    expect(
+      opt.choose(OfferPlacement.revive, near).variant,
+      OfferVariant.progress,
+    );
+    expect(
+      opt.choose(OfferPlacement.revive, far).variant,
+      isNot(OfferVariant.progress),
+    );
   });
 
   test('state survives a save/load round trip', () {
@@ -68,8 +77,10 @@ void main() {
     }
     final restored = OfferOptimizer()..loadJson(opt.toJson());
     for (final v in OfferVariant.values) {
-      expect(restored.predict(OfferPlacement.revive, v, ctx()),
-          closeTo(opt.predict(OfferPlacement.revive, v, ctx()), 1e-9));
+      expect(
+        restored.predict(OfferPlacement.revive, v, ctx()),
+        closeTo(opt.predict(OfferPlacement.revive, v, ctx()), 1e-9),
+      );
     }
     expect(restored.stats(), opt.stats());
   });
@@ -83,11 +94,21 @@ void main() {
     final opt = OfferOptimizer(random: Random(0));
     final t0 = DateTime(2026);
     expect(opt.shouldOffer(OfferPlacement.revive, ctx(), now: t0), isTrue);
-    expect(opt.shouldOffer(OfferPlacement.revive, ctx(),
-        now: t0.add(const Duration(seconds: 30))), isFalse);
+    expect(
+      opt.shouldOffer(
+        OfferPlacement.revive,
+        ctx(),
+        now: t0.add(const Duration(seconds: 30)),
+      ),
+      isFalse,
+    );
     var shown = 1;
     for (var i = 1; i < 20; i++) {
-      if (opt.shouldOffer(OfferPlacement.revive, ctx(), now: t0.add(Duration(minutes: 2 * i)))) {
+      if (opt.shouldOffer(
+        OfferPlacement.revive,
+        ctx(),
+        now: t0.add(Duration(minutes: 2 * i)),
+      )) {
         shown++;
       }
     }

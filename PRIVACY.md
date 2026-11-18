@@ -7,7 +7,8 @@ OR STUDIO]**, handles information.
 
 ## What the app stores on your device
 
-* Your best score and number of games played.
+* Your best score, level, coins, unlocked themes, daily streak, daily goals,
+  settings and your current unfinished game.
 * How often you have accepted or declined "watch an ad" offers, and the
   settings of a small model that learns how to present those offers to you.
 
@@ -16,7 +17,8 @@ servers, because we don't run any. Uninstalling the app deletes it.
 
 ## Advertising
 
-The app shows optional rewarded ads through **Google AdMob**. To serve and
+The app shows ads through **Google AdMob**: optional rewarded ads that you
+choose to watch, and occasional full-screen ads between games. To serve and
 measure ads, Google may collect:
 
 * your device's advertising ID,

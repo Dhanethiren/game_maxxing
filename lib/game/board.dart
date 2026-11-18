@@ -6,11 +6,15 @@ class PlaceResult {
     required this.clearedRows,
     required this.clearedCols,
     required this.clearedCells,
+    this.clearedColors = const {},
   });
 
   final List<int> clearedRows;
   final List<int> clearedCols;
   final Set<Cell> clearedCells;
+
+  /// Colour index each cleared cell had, for particle effects.
+  final Map<Cell, int> clearedColors;
 
   int get linesCleared => clearedRows.length + clearedCols.length;
 }
@@ -29,6 +33,9 @@ class Board {
   int? at(int row, int col) => _cells[row * size + col];
 
   bool isEmpty(int row, int col) => at(row, col) == null;
+
+  void setCell(int row, int col, int? colorIndex) =>
+      _cells[row * size + col] = colorIndex;
 
   int get filledCount => _cells.where((c) => c != null).length;
 
@@ -76,6 +83,9 @@ class Board {
       for (final c in fullCols)
         for (var r = 0; r < size; r++) Cell(r, c),
     };
+    final colors = <Cell, int>{
+      for (final cell in cleared) cell: _cells[cell.row * size + cell.col]!,
+    };
     for (final cell in cleared) {
       _cells[cell.row * size + cell.col] = null;
     }
@@ -83,7 +93,15 @@ class Board {
       clearedRows: fullRows,
       clearedCols: fullCols,
       clearedCells: cleared,
+      clearedColors: colors,
     );
+  }
+
+  /// Lines (rows + columns) that placing [piece] at ([row], [col]) would clear,
+  /// without changing the board. Returns 0 if the move is illegal.
+  int linesIfPlaced(Piece piece, int row, int col) {
+    if (!canPlace(piece, row, col)) return 0;
+    return Board.fromCells(size, _cells).place(piece, row, col).linesCleared;
   }
 
   /// Empties the [count] fullest rows. Used by the "revive" reward to give the
@@ -101,8 +119,10 @@ class Board {
     return cleared;
   }
 
-  int _rowFill(int r) =>
-      List.generate(size, (c) => isEmpty(r, c) ? 0 : 1).fold(0, (a, b) => a + b);
+  int _rowFill(int r) => List.generate(
+    size,
+    (c) => isEmpty(r, c) ? 0 : 1,
+  ).fold(0, (a, b) => a + b);
 
   void clear() => _cells.fillRange(0, _cells.length, null);
 }

@@ -46,10 +46,15 @@ class _GameScreenState extends State<GameScreen> {
     game.addListener(_onGameChanged);
     offers.profile.onGameStarted();
     // Ads (and the consent form) start after the first frame is on screen.
+    // If ads fail to start, the game still works; offers just won't appear.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await offers.ads.init();
-      final required = await offers.ads.privacyOptionsRequired();
-      if (mounted) setState(() => _privacyRequired = required);
+      try {
+        await offers.ads.init().timeout(const Duration(seconds: 20));
+        final required = await offers.ads.privacyOptionsRequired();
+        if (mounted) setState(() => _privacyRequired = required);
+      } catch (e) {
+        debugPrint('Ads unavailable: $e');
+      }
     });
   }
 

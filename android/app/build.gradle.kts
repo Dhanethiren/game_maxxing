@@ -58,6 +58,10 @@ android {
                 signingConfigs.getByName("release")
             else
                 signingConfigs.getByName("debug")
+            // Code shrinking (R8) is off: it is the prime suspect for the first
+            // build failing to start, and the size saving is small.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

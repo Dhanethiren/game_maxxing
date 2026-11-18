@@ -48,7 +48,7 @@ lib/
   services/                  player profile, progression (levels, streaks, missions)
   ui/                        home, game, Journey map, spin wheel, themes, dialogs, effects
 assets/sounds/               generated sound effects and music
-tool/generate_sounds.py      synthesises every sound from scratch (numpy)
+tool/sound/                  sound engine (synth.js), renderer and Sound Studio page
 tool/generate_icons.py       draws the app icon and store graphics (Pillow)
 tool/preflight.py            release checklist: run before every Play upload
 store/                       Play Store icon, feature graphic and screenshots
@@ -115,12 +115,16 @@ flutter run
 
 On web and desktop the ads are simulated. On a phone they're real **test** ads.
 
-To change the sounds, edit `tool/generate_sounds.py` and run it. It needs
-numpy.
+To change the sounds, use the **Sound Studio** page: listen, move the
+sliders, then press *Save for Claude*. Or save your settings as JSON and
+render them yourself (needs Node.js):
 
 ```bash
-python3 tool/generate_sounds.py
+node tool/sound/render.js my-settings.json
 ```
+
+This writes `assets/sounds/*.wav` plus `assets/sounds/mix.json` (in-game
+volumes). See [docs/SOUNDS.md](docs/SOUNDS.md).
 
 ## Before publishing to Google Play: checklist
 

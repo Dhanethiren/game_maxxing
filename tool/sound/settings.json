@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "global": {
+    "transpose": 0,
+    "brightness": 1,
+    "room": 0.84
+  },
+  "sounds": {
+    "place": {
+      "pitch": 330,
+      "variety": 4,
+      "decay": 45,
+      "click": 0.25,
+      "tone": 4200,
+      "reverb": 0.12,
+      "volume": 0.55,
+      "gameVolume": 1
+    },
+    "pickup": {
+      "pitch": 1400,
+      "decay": 8,
+      "volume": 0.18,
+      "gameVolume": 0.5
+    },
+    "invalid": {
+      "pitch": 150,
+      "decay": 40,
+      "volume": 0.35,
+      "gameVolume": 0.6
+    },
+    "clear": {
+      "startNote": 5,
+      "stepPerCombo": 1,
+      "noteGap": 55,
+      "ring": 1.3,
+      "brightness": 1,
+      "body": 0.25,
+      "reverb": 0.3,
+      "volume": 0.8,
+      "gameVolume": 1
+    },
+    "sweep": {
+      "low": 450,
+      "high": 2600,
+      "length": 0.42,
+      "reverb": 0.2,
+      "volume": 0.32,
+      "gameVolume": 0.7
+    },
+    "sparkle": {
+      "notes": 7,
+      "gap": 32,
+      "ring": 0.7,
+      "brightness": 1.4,
+      "reverb": 0.35,
+      "volume": 0.45,
+      "gameVolume": 0.8
+    },
+    "perfect": {
+      "runNotes": 10,
+      "gap": 45,
+      "chordRing": 2.2,
+      "reverb": 0.35,
+      "volume": 0.85,
+      "gameVolume": 1
+    },
+    "gameover": {
+      "startNote": 9,
+      "gap": 240,
+      "ring": 1.8,
+      "warmth": 2200,
+      "reverb": 0.4,
+      "volume": 0.55,
+      "gameVolume": 1
+    },
+    "revive": {
+      "notes": 5,
+      "step": 2,
+      "gap": 50,
+      "ring": 1,
+      "reverb": 0.35,
+      "volume": 0.7,
+      "gameVolume": 1
+    },
+    "coin": {
+      "note1": 13,
+      "note2": 15,
+      "gap": 70,
+      "ring": 0.8,
+      "brightness": 1.3,
+      "reverb": 0.2,
+      "volume": 0.5,
+      "gameVolume": 0.8
+    },
+    "levelup": {
+      "gap": 80,
+      "ring": 1.2,
+      "reverb": 0.3,
+      "volume": 0.75,
+      "gameVolume": 1
+    },
+    "tap": {
+      "pitchStart": 620,
+      "pitchEnd": 400,
+      "decay": 18,
+      "volume": 0.3,
+      "gameVolume": 0.7
+    },
+    "music": {
+      "progression": 0,
+      "chordSeconds": 8,
+      "padVolume": 0.16,
+      "bellEvery": 3,
+      "bellVolume": 0.22,
+      "brightness": 3000,
+      "reverb": 0.45,
+      "seed": 11,
+      "volume": 0.5,
+      "gameVolume": 0.35
+    }
+  }
+}

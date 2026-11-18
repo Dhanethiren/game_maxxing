@@ -1,7 +1,37 @@
 # Calm Grid sound pack
 
-All 22 audio files live in `assets/sounds/`. Every one was synthesised from
-scratch by `tool/generate_sounds.py`, so they are original and royalty-free.
+All 22 audio files live in `assets/sounds/`. Every one is synthesised from
+scratch by our own engine, `tool/sound/synth.js`, so they are original and
+royalty-free.
+
+## Tweak them by ear: the Sound Studio
+
+The easiest way to change sounds is the **Calm Grid Sound Studio** page
+(https://claude.ai/artifact/GNfJrf6d4XQab2hjd22jnh). It lets you:
+- play every sound,
+- move plain-language sliders (tone, length, echo, loudness, in-game
+  volume…) and hear the change straight away,
+- hear sounds in context, e.g. a ×1→×8 combo, a perfect clear or running out
+  of moves, optionally over the music,
+- press **Save for Claude**, then tell Claude "apply my sound settings".
+
+The page and the game share one engine (`tool/sound/synth.js`), so the game
+gets exactly what you heard. To rebuild the files yourself from saved
+settings (needs Node.js):
+
+```bash
+node tool/sound/render.js my-settings.json
+```
+
+It writes every `.wav`, `assets/sounds/mix.json` (the in-game volume of each
+file, read by the game) and `tool/sound/settings.json` (the current design,
+kept in git).
+
+To rebuild the studio page after changing the engine:
+
+```bash
+node tool/sound/build_studio.js
+```
 
 ## When each sound plays
 
@@ -10,17 +40,17 @@ loudness (`lib/audio/sound_service.dart`). 1.0 means the file plays as is.
 
 | # | File | Length | Plays when… (exact trigger) | Game volume |
 |---|---|---|---|---|
-| 1 | `place_0.wav`, `place_1.wav`, `place_2.wav` | 0.7 s | **A block lands on the board.** One of the three is picked at random each time (same "wooden tock", pitch ±4%) so repeated placing never sounds mechanical. | 1.0 |
+| 1 | `place_0.wav`, `place_1.wav`, `place_2.wav` | 0.8 s | **A block lands on the board.** One of the three is picked at random each time (same "wooden tock", pitch ±4%) so repeated placing never sounds mechanical. | 1.0 |
 | 2 | `pickup.wav` | 0.05 s | **Your finger touches a piece in the tray** (start of a drag). Also the **tick each time a segment passes the pointer on the Daily Spin wheel**. | 0.5 |
 | 3 | `invalid.wav` | 0.14 s | **You release a piece over the board where it doesn't fit**, and it goes back to the tray. | 0.6 |
-| 4 | `clear_1.wav` … `clear_8.wav` | ~2.6 s | **One or more lines clear.** The number is the **combo level**: `clear_1` for a first clear, `clear_2` when you clear again within 3 moves, and so on up to `clear_8` (higher combos stay on 8). Each step is a 3-note chime one scale step higher, so the pitch climbs as the combo builds. | 1.0 |
-| 5 | `sweep.wav` | 1.1 s | **Every line clear**, together with `clear_N`. It's the soft "whoosh" that follows the band of light sweeping along the cleared row or column. | 0.7 |
-| 6 | `sparkle.wav` | 1.9 s | **2 or more lines clear in one move**, layered on top of `clear_N` and `sweep`. | 0.8 |
-| 7 | `perfect.wav` | 4.2 s | **The whole board is emptied** ("Perfect Clear!"), on top of the clear sounds. Also **when a Journey level is completed**, 0.7 s after the winning move. | 1.0 |
-| 8 | `gameover.wav` | 3.7 s | **No more moves**: the instant none of your pieces fit, as the board fades to grey and the "No more moves" banner appears. | 1.0 |
-| 9 | `revive.wav` | 2.7 s | **You revive after watching the ad**: the fullest rows clear and play resumes. | 1.0 |
-| 10 | `coin.wav` | 1.5 s | Small rewards:<br>• a **daily goal completes** (once per goal, with the pop-up)<br>• a **gem is collected** in Journey<br>• **coins are doubled** after the ad on the game-over screen<br>• **free coins** arrive in Themes<br>• a **Daily Spin prize under 100 coins** | 0.8 |
-| 11 | `levelup.wav` | 3.5 s | Big rewards:<br>• your **player level goes up** (0.9 s after the game-over panel appears)<br>• a **Journey level is completed** (0.9 s after `perfect`, as the stars pop in)<br>• the **daily reward is claimed**<br>• a **theme is bought**<br>• a **Daily Spin prize of 100+ coins** | 1.0 |
+| 4 | `clear_1.wav` … `clear_8.wav` | ~1.8 s | **One or more lines clear.** The number is the **combo level**: `clear_1` for a first clear, `clear_2` when you clear again within 3 moves, and so on up to `clear_8` (higher combos stay on 8). Each step is a 3-note chime one scale step higher, so the pitch climbs as the combo builds. | 1.0 |
+| 5 | `sweep.wav` | 1.0 s | **Every line clear**, together with `clear_N`. It's the soft "whoosh" that follows the band of light sweeping along the cleared row or column. | 0.7 |
+| 6 | `sparkle.wav` | 1.3 s | **2 or more lines clear in one move**, layered on top of `clear_N` and `sweep`. | 0.8 |
+| 7 | `perfect.wav` | 3.1 s | **The whole board is emptied** ("Perfect Clear!"), on top of the clear sounds. Also **when a Journey level is completed**, 0.7 s after the winning move. | 1.0 |
+| 8 | `gameover.wav` | 2.6 s | **No more moves**: the instant none of your pieces fit, as the board fades to grey and the "No more moves" banner appears. | 1.0 |
+| 9 | `revive.wav` | 1.6 s | **You revive after watching the ad**: the fullest rows clear and play resumes. | 1.0 |
+| 10 | `coin.wav` | 1.1 s | Small rewards:<br>• a **daily goal completes** (once per goal, with the pop-up)<br>• a **gem is collected** in Journey<br>• **coins are doubled** after the ad on the game-over screen<br>• **free coins** arrive in Themes<br>• a **Daily Spin prize under 100 coins** | 0.8 |
+| 11 | `levelup.wav` | 2.5 s | Big rewards:<br>• your **player level goes up** (0.9 s after the game-over panel appears)<br>• a **Journey level is completed** (0.9 s after `perfect`, as the stars pop in)<br>• the **daily reward is claimed**<br>• a **theme is bought**<br>• a **Daily Spin prize of 100+ coins** | 1.0 |
 | 12 | `tap.wav` | 0.07 s | **Any button or icon is pressed** (menus, dialogs, settings toggles). | 0.7 |
 | 13 | `music_loop.wav` | 32.0 s | **Background music.** Starts once the app has loaded (if Music is on), **loops seamlessly every 32 s**, pauses when the app goes to the background and resumes when you return. It can be switched off in Settings or the Pause menu. | 0.35 |
 
@@ -85,5 +115,5 @@ Keep these rules so they drop straight into the game:
    code.
 
 Then either send the files back to me, or put them in `assets/sounds/`
-yourself and rebuild. Note: re-running `tool/generate_sounds.py` would
-overwrite them.
+yourself and rebuild. Note: re-running `tool/sound/render.js` would
+overwrite them. The Sound Studio is usually the easier route.

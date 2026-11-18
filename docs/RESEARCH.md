@@ -66,7 +66,7 @@ turn them off with `enabled: false`.
 |---|---|---|
 | Sound on every step, plus **praise that escalates** with the move ("Sweet → Tasty → Delicious → Divine"). It builds a "feeling of elevation". | Candy Crush ([Game Developer audio breakdown](https://www.gamedeveloper.com/audio/why-candy-crush-saga-is-so-engaging-an-audio-breakdown)) | Praise text grows with the clear: Nice → Great! → Excellent! → Amazing! → Perfect Clear!. It pops in with a bounce. Line-clear chimes **climb in pitch with each combo** (8 steps), every button has a soft tap sound, and the game uses haptics. |
 | Big clears deserve a bigger celebration. | Tetris (the 4-line "Tetris") | 2+ lines add a sparkle layer and a gentle shake. A perfect clear gets a scale run, confetti and a heavy haptic. |
-| A calm, tactile look with satisfying "wood-tile" sound effects. | Woodoku listing | Soft glossy blocks and a soft wooden "tock" when placing, in 3 pitch variants. All sounds are synthesised from scratch (`tool/generate_sounds.py`). |
+| A calm, tactile look with satisfying "wood-tile" sound effects. | Woodoku listing | Soft glossy blocks and a soft wooden "tock" when placing, in 3 pitch variants. All sounds are synthesised from scratch (`tool/sound/synth.js`). |
 | Clear, colourful blocks. | Block Blast | Seven distinct hues per theme, plus a dark "Midnight" theme. |
 
 Note: the chimes use the **pentatonic** scale because it never sounds harsh.

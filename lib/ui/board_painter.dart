@@ -21,6 +21,9 @@ class BoardVisuals {
     this.settling = const {},
     this.settleProgress = 1,
     this.gems = const {},
+    this.sweepRows = const [],
+    this.sweepCols = const [],
+    this.lossProgress = 0,
   });
 
   /// Cells the dragged piece would occupy.
@@ -43,20 +46,40 @@ class BoardVisuals {
 
   /// Blocks holding a gem (Journey gem levels).
   final Set<Cell> gems;
+
+  /// Full rows / columns being cleared: a band of light sweeps along them.
+  final List<int> sweepRows;
+  final List<int> sweepCols;
+
+  /// 0..1 "no more moves" wave that fades the blocks to grey.
+  final double lossProgress;
 }
 
 class BoardPainter extends CustomPainter {
+  /// [visualsOf] is read at paint time and [repaint] (animations, drag
+  /// moves) triggers repaints directly, so the board animates without
+  /// rebuilding the rest of the screen.
   BoardPainter({
     required this.board,
     required this.theme,
-    required this.visuals,
+    required this.visualsOf,
     required this.dpr,
+    super.repaint,
   });
 
   final Board board;
   final GameTheme theme;
-  final BoardVisuals visuals;
+  final BoardVisuals Function() visualsOf;
   final double dpr;
+
+  /// Muted, slightly tinted grey used when the board is out of moves.
+  static Color _muted(Color c) {
+    final hsl = HSLColor.fromColor(c);
+    return hsl
+        .withSaturation(hsl.saturation * 0.12)
+        .withLightness((hsl.lightness * 0.92).clamp(0.0, 1.0))
+        .toColor();
+  }
 
   /// Padding inside the board frame, as a fraction of a cell.
   static const double framePadding = 0.18;
@@ -66,6 +89,7 @@ class BoardPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final visuals = visualsOf();
     final n = board.size;
     final cell = cellSize(size.width, n);
     final pad = cell * framePadding;
@@ -107,7 +131,13 @@ class BoardPainter extends CustomPainter {
 
         if (ghostColor != null && visuals.previewClear.contains(pos)) {
           // Line about to clear: show it glowing in the dragged piece's colour.
-          BlockArt.draw(canvas, cellRect(r, c), ghostColor, dpr);
+          BlockArt.draw(
+            canvas,
+            cellRect(r, c),
+            ghostColor,
+            dpr,
+            variant: BlockArt.variantFor(r, c),
+          );
           if (visuals.gems.contains(pos)) paintGem(canvas, cellRect(r, c));
           continue;
         }
@@ -117,28 +147,103 @@ class BoardPainter extends CustomPainter {
             final t = visuals.settleProgress;
             scale = 1 + 0.14 * sin(pi * t) * (1 - t);
           }
-          BlockArt.draw(
-            canvas,
-            cellRect(r, c, scale),
-            theme.blocks[value],
-            dpr,
-          );
+          final color = theme.blocks[value];
+          final rect = cellRect(r, c, scale);
+          final variant = BlockArt.variantFor(r, c);
+          BlockArt.draw(canvas, rect, color, dpr, variant: variant);
+          if (visuals.lossProgress > 0) {
+            // Grey-out wave from the top-left corner: cross-fade to a muted
+            // tile (two cached images per colour, no per-frame allocations).
+            final local =
+                ((visuals.lossProgress - (r + c) / (2 * n) * 0.6) / 0.4).clamp(
+                  0.0,
+                  1.0,
+                );
+            if (local > 0) {
+              BlockArt.draw(
+                canvas,
+                rect,
+                _muted(color),
+                dpr,
+                opacity: local,
+                variant: variant,
+              );
+            }
+          }
           if (visuals.gems.contains(pos)) {
             paintGem(canvas, cellRect(r, c, scale));
           }
         } else if (ghostColor != null && visuals.ghost.contains(pos)) {
-          BlockArt.draw(canvas, cellRect(r, c), ghostColor, dpr, opacity: 0.45);
+          BlockArt.draw(
+            canvas,
+            cellRect(r, c),
+            ghostColor,
+            dpr,
+            opacity: 0.45,
+            variant: BlockArt.variantFor(r, c),
+          );
         }
       }
     }
 
-    _paintClearing(canvas, cellRect, cell);
+    _paintClearing(canvas, visuals, cellRect, cell);
+    _paintSweep(canvas, visuals, size, cell, pad);
+  }
+
+  /// A soft band of light travels along each cleared row (left to right) and
+  /// column (top to bottom) at the start of the clear.
+  void _paintSweep(
+    Canvas canvas,
+    BoardVisuals visuals,
+    Size size,
+    double cell,
+    double pad,
+  ) {
+    final t = visuals.clearProgress;
+    if (t >= 0.6 || (visuals.sweepRows.isEmpty && visuals.sweepCols.isEmpty)) {
+      return;
+    }
+    final k = Curves.easeOut.transform(t / 0.6);
+    final length = cell * 8;
+    final band = cell * 2.2;
+    final pos = -band + (length + band * 2) * k;
+    final alpha = (1 - k) * 0.85;
+    Paint bandPaint(Rect r, bool horizontal) => Paint()
+      ..blendMode = BlendMode.plus
+      ..shader = LinearGradient(
+        begin: horizontal ? Alignment.centerLeft : Alignment.topCenter,
+        end: horizontal ? Alignment.centerRight : Alignment.bottomCenter,
+        colors: [
+          Colors.white.withValues(alpha: 0),
+          Colors.white.withValues(alpha: alpha),
+          Colors.white.withValues(alpha: 0),
+        ],
+      ).createShader(r);
+    for (final row in visuals.sweepRows) {
+      final r = Rect.fromLTWH(
+        pad + pos - band / 2,
+        pad + row * cell,
+        band,
+        cell,
+      );
+      canvas.drawRect(r, bandPaint(r, true));
+    }
+    for (final col in visuals.sweepCols) {
+      final r = Rect.fromLTWH(
+        pad + col * cell,
+        pad + pos - band / 2,
+        cell,
+        band,
+      );
+      canvas.drawRect(r, bandPaint(r, false));
+    }
   }
 
   /// Cleared blocks flash bright, then shrink away in a wave spreading out
   /// from where the piece landed.
   void _paintClearing(
     Canvas canvas,
+    BoardVisuals visuals,
     Rect Function(int, int, [double]) cellRect,
     double cell,
   ) {
@@ -159,6 +264,7 @@ class BoardPainter extends CustomPainter {
         theme.blocks[color],
         dpr,
         opacity: 1 - local * 0.5,
+        variant: BlockArt.variantFor(pos.row, pos.col),
       );
       final flash = (1 - local * 2.5).clamp(0.0, 1.0);
       if (flash > 0) {

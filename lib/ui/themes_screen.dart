@@ -244,7 +244,13 @@ class _PreviewPainter extends CustomPainter {
             Paint()..color = t.emptyCell,
           );
         } else {
-          BlockArt.draw(canvas, rect, t.blocks[k], dpr);
+          BlockArt.draw(
+            canvas,
+            rect,
+            t.blocks[k],
+            dpr,
+            variant: BlockArt.variantFor(r, c),
+          );
         }
       }
     }

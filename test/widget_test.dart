@@ -10,6 +10,7 @@ import 'package:calm_grid/services/player_profile.dart';
 import 'package:calm_grid/services/reward_offers.dart';
 import 'package:calm_grid/ui/board_painter.dart';
 import 'package:calm_grid/ui/game_screen.dart';
+import 'package:calm_grid/ui/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -43,6 +44,14 @@ void playUntilLost(GameState game, Random rnd) {
   }
 }
 
+/// Simulates a real phone screen: the app sees this logical size (so its
+/// own scaling matches a real device), not just a resized test window.
+void setScreen(WidgetTester tester, Size size) {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = size;
+  addTearDown(tester.view.reset);
+}
+
 void main() {
   const sizes = {
     'small phone 320x568': Size(320, 568),
@@ -54,14 +63,18 @@ void main() {
 
   for (final MapEntry(key: name, value: size) in sizes.entries) {
     testWidgets('home and game fit without overflow on $name', (tester) async {
-      await tester.binding.setSurfaceSize(size);
+      setScreen(tester, size);
       final services = makeServices();
       await tester.pumpWidget(CalmGridApp(services: services));
       await tester.pump();
       expect(find.text('Calm Grid'), findsOneWidget);
       expect(find.text('Classic'), findsOneWidget);
       expect(find.textContaining('Journey'), findsOneWidget);
-      expect(find.text("Today's goals"), findsOneWidget);
+      for (final label in ['Daily', 'Spin', 'Goals', 'Themes']) {
+        expect(find.text(label), findsOneWidget);
+      }
+      // Simple home: everything fits on one screen, no scrolling.
+      expect(find.byType(Scrollable), findsNothing);
 
       await tester.tap(find.text('Classic'));
       await tester.pumpAndSettle(const Duration(milliseconds: 100));
@@ -73,7 +86,7 @@ void main() {
   testWidgets(
     'drag a piece into the bottom-right corner (whole 8x8 reachable)',
     (tester) async {
-      await tester.binding.setSurfaceSize(const Size(390, 844));
+      setScreen(tester, const Size(390, 844));
       final services = makeServices();
       final game = GameState(random: Random(4));
       await tester.pumpWidget(gameApp(services, game));
@@ -123,7 +136,7 @@ void main() {
   testWidgets('lose -> revive with ad -> lose -> game over -> double coins', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
+    setScreen(tester, const Size(390, 844));
     final services = makeServices();
     final ads = services.offers.ads as SimulatedAdService;
     final game = GameState(random: Random(1));
@@ -131,6 +144,9 @@ void main() {
 
     playUntilLost(game, Random(7));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 700));
+    // Losing first shows a clear "No more moves" moment on the greyed board.
+    expect(find.text('No more moves'), findsOneWidget);
     await tester.pump(const Duration(seconds: 2));
     expect(find.text('Watch ad & continue'), findsOneWidget);
 
@@ -150,7 +166,7 @@ void main() {
       findsNothing,
       reason: 'one revive per game',
     );
-    expect(find.text('Play again'), findsOneWidget);
+    expect(find.text('Try again'), findsOneWidget);
     expect(services.profile.hasSavedGame, isFalse);
     expect(services.profile.bestScore, game.score);
     final coinsBefore = services.profile.coins;
@@ -163,7 +179,7 @@ void main() {
     expect(services.profile.coins, greaterThan(coinsBefore));
     expect(ads.rewardedShown, 2);
 
-    await tester.tap(find.text('Play again'));
+    await tester.tap(find.text('Try again'));
     await tester.pumpAndSettle();
     expect(
       ads.interstitialsShown,
@@ -174,7 +190,7 @@ void main() {
   });
 
   testWidgets('saved game shows Continue on the home screen', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
+    setScreen(tester, const Size(390, 844));
     final services = makeServices();
     final game = GameState(random: Random(2));
     final i = game.tray.indexWhere((p) => p != null);
@@ -189,7 +205,7 @@ void main() {
   testWidgets('Journey: win a level, earn stars and coins, go to the next', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
+    setScreen(tester, const Size(390, 844));
     final services = makeServices(stored: {'tutorialDone': true});
     final level = LevelSpec.generate(1);
     // Play legal moves until the score goal is met (re-deal on a stuck board).
@@ -235,17 +251,16 @@ void main() {
   testWidgets('daily spin: free spin, then one extra spin for an ad', (
     tester,
   ) async {
-    await tester.binding.setSurfaceSize(const Size(390, 844));
+    setScreen(tester, const Size(390, 844));
     final services = makeServices();
     await tester.pumpWidget(CalmGridApp(services: services));
     await tester.pump();
-    await tester.ensureVisible(find.text('Daily spin'));
-    await tester.pump();
-    await tester.tap(find.text('Daily spin'));
+    await tester.tap(find.text('Spin'));
     await tester.pump(const Duration(seconds: 1));
 
-    await tester.ensureVisible(find.text('Spin'));
-    await tester.tap(find.text('Spin'));
+    final spinButton = find.widgetWithText(SoftButton, 'Spin');
+    await tester.ensureVisible(spinButton);
+    await tester.tap(spinButton);
     await tester.pump();
     await tester.pump(const Duration(seconds: 5));
     await tester.pump(const Duration(seconds: 1));
@@ -265,5 +280,26 @@ void main() {
     expect(services.profile.coins, greaterThan(afterFirst));
     expect(services.profile.extraSpinAvailable, isFalse);
     expect(find.text('Come back tomorrow'), findsOneWidget);
+  });
+
+  testWidgets('home icons open goals and the already-claimed daily view', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(390, 844));
+    final services = makeServices();
+    await tester.pumpWidget(CalmGridApp(services: services));
+    await tester.pump();
+
+    await tester.tap(find.text('Goals'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text("Today's goals"), findsOneWidget);
+    await tester.tap(find.widgetWithText(SoftButton, 'OK'));
+    await tester.pump(const Duration(seconds: 1));
+
+    await services.profile.claimDaily();
+    await tester.pump();
+    await tester.tap(find.text('Daily'));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.textContaining('day streak'), findsOneWidget);
   });
 }

@@ -1,13 +1,20 @@
+import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:material_ui/material_ui.dart';
 
-/// Draws the soft, glossy "jelly" blocks.
+/// Draws the blocks as hand-crafted tiles: bevelled edges lit from the top
+/// left, a flat inset face, fine grain and hairline scratches, and small
+/// per-tile differences (tone, grain, bevel) so no two neighbours look
+/// machine-identical.
 ///
-/// Each block is drawn once per colour and size into an image and then reused,
-/// so the board stays smooth even on low-end phones.
+/// Each (colour, size, variant) is drawn once into an image and reused, so
+/// the board stays smooth even on low-end phones.
 class BlockArt {
-  static final _cache = <(int, int), ui.Image>{};
+  static final _cache = <(int, int, int), ui.Image>{};
+
+  /// Number of hand-made variations per colour.
+  static const variants = 4;
 
   static Color _shift(Color c, double lightness) {
     final hsl = HSLColor.fromColor(c);
@@ -16,68 +23,144 @@ class BlockArt {
         .toColor();
   }
 
-  /// Paints one block filling [rect].
-  static void paint(Canvas canvas, Rect rect, Color color) {
+  /// Paints one tile filling [rect]. [variant] seeds its small imperfections.
+  static void paint(Canvas canvas, Rect rect, Color base, [int variant = 0]) {
+    final r = Random(variant * 7919 + base.toARGB32());
     final w = rect.width;
-    final radius = Radius.circular(w * 0.22);
-    // Darker base gives a soft bevel along the bottom edge.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, radius),
-      Paint()..color = _shift(color, -0.12),
+    // Each variant has a slightly different tone and bevel depth.
+    final color = _shift(base, (r.nextDouble() - 0.5) * 0.045);
+    final bevel = w * (0.11 + r.nextDouble() * 0.025);
+    final outer = RRect.fromRectAndRadius(rect, Radius.circular(w * 0.15));
+
+    canvas
+      ..save()
+      ..clipRRect(outer);
+    canvas.drawRect(rect, Paint()..color = _shift(color, -0.10));
+
+    // Four bevel faces, lit from the top left.
+    final l = rect.left, t = rect.top, rr = rect.right, b = rect.bottom;
+    void face(List<Offset> pts, double light) => canvas.drawPath(
+      Path()..addPolygon(pts, true),
+      Paint()..color = _shift(color, light),
     );
-    // Main face, lit from the top.
-    final face = Rect.fromLTRB(
-      rect.left,
-      rect.top,
-      rect.right,
-      rect.bottom - w * 0.09,
-    );
+    face([
+      Offset(l, t),
+      Offset(rr, t),
+      Offset(rr - bevel, t + bevel),
+      Offset(l + bevel, t + bevel),
+    ], 0.12);
+    face([
+      Offset(l, t),
+      Offset(l + bevel, t + bevel),
+      Offset(l + bevel, b - bevel),
+      Offset(l, b),
+    ], 0.06);
+    face([
+      Offset(rr, t),
+      Offset(rr, b),
+      Offset(rr - bevel, b - bevel),
+      Offset(rr - bevel, t + bevel),
+    ], -0.07);
+    face([
+      Offset(l, b),
+      Offset(l + bevel, b - bevel),
+      Offset(rr - bevel, b - bevel),
+      Offset(rr, b),
+    ], -0.15);
+
+    // Flat inset face with a very gentle top-to-bottom shade.
+    final inner = rect.deflate(bevel);
     canvas.drawRRect(
-      RRect.fromRectAndRadius(face, radius),
+      RRect.fromRectAndRadius(inner, Radius.circular(w * 0.06)),
       Paint()
         ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_shift(color, 0.08), color],
-        ).createShader(face),
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_shift(color, 0.035), _shift(color, -0.02)],
+        ).createShader(inner),
     );
-    // Glossy highlight.
-    final gloss = Rect.fromLTWH(
-      rect.left + w * 0.16,
-      rect.top + w * 0.1,
-      w * 0.68,
-      w * 0.2,
-    );
+
+    // Grain: fine light and dark speckles, like glazed clay.
+    final speck = Paint();
+    final count = (w * w / 18).clamp(40, 900).toInt();
+    for (var i = 0; i < count; i++) {
+      final dark = r.nextBool();
+      speck.color = (dark ? Colors.black : Colors.white).withValues(
+        alpha: 0.025 + r.nextDouble() * (dark ? 0.04 : 0.06),
+      );
+      final size = w * (0.006 + r.nextDouble() * 0.012);
+      canvas.drawRect(
+        Rect.fromLTWH(
+          l + r.nextDouble() * w,
+          t + r.nextDouble() * w,
+          size,
+          size,
+        ),
+        speck,
+      );
+    }
+    // A couple of faint hairline scratches on the face.
+    final scratch = Paint()
+      ..strokeWidth = w * 0.008
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.10);
+    for (var i = 0; i < 2; i++) {
+      final start =
+          inner.topLeft +
+          Offset(r.nextDouble() * inner.width, r.nextDouble() * inner.height);
+      final len = w * (0.08 + r.nextDouble() * 0.12);
+      final angle = -0.6 + r.nextDouble() * 0.5;
+      canvas.drawLine(
+        start,
+        start + Offset(cos(angle), sin(angle)) * len,
+        scratch,
+      );
+    }
+    canvas.restore();
+
+    // Thin darker outline so tiles read crisply on light backgrounds.
     canvas.drawRRect(
-      RRect.fromRectAndRadius(gloss, Radius.circular(w * 0.1)),
-      Paint()..color = Colors.white.withValues(alpha: 0.32),
+      outer.deflate(w * 0.006),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.012
+        ..color = _shift(color, -0.22).withValues(alpha: 0.35),
     );
   }
 
-  /// Cached image of a block of [color] at [size] logical pixels times [dpr].
-  static ui.Image image(Color color, double size, double dpr) {
+  /// Cached tile image of [color] at [size] logical pixels times [dpr].
+  static ui.Image image(
+    Color color,
+    double size,
+    double dpr, [
+    int variant = 0,
+  ]) {
     final px = (size * dpr).round().clamp(4, 512);
-    return _cache.putIfAbsent((color.toARGB32(), px), () {
-      if (_cache.length > 200) _cache.clear();
+    final v = variant % variants;
+    return _cache.putIfAbsent((color.toARGB32(), px, v), () {
+      if (_cache.length > 400) _cache.clear();
       final recorder = ui.PictureRecorder();
       paint(
         Canvas(recorder),
         Rect.fromLTWH(0, 0, px.toDouble(), px.toDouble()),
         color,
+        v,
       );
       return recorder.endRecording().toImageSync(px, px);
     });
   }
 
-  /// Draws a cached block into [rect] with optional [opacity].
+  /// Draws a cached tile into [rect] with optional [opacity]. Pass a
+  /// [variant] (e.g. from the cell position) so neighbours differ slightly.
   static void draw(
     Canvas canvas,
     Rect rect,
     Color color,
     double dpr, {
     double opacity = 1,
+    int variant = 0,
   }) {
-    final img = image(color, rect.width, dpr);
+    final img = image(color, rect.width, dpr, variant);
     final paint = Paint()
       ..filterQuality = FilterQuality.medium
       ..color = Colors.white.withValues(alpha: opacity.clamp(0, 1));
@@ -88,6 +171,10 @@ class BlockArt {
       paint,
     );
   }
+
+  /// Stable variant for a board cell.
+  static int variantFor(int row, int col) =>
+      (row * 3 + col * 5 + row * col) % variants;
 }
 
 /// A block shape drawn with [BlockArt], used in the tray and while dragging.
@@ -182,6 +269,7 @@ class _PiecePainter extends CustomPainter {
         color,
         dpr,
         opacity: opacity,
+        variant: BlockArt.variantFor(r, c),
       );
     }
   }

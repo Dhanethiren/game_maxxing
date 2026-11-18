@@ -145,6 +145,14 @@ def main():
         events += [(k * 0.055, bell(f, 1.3)) for k, f in enumerate(notes)]
         write(f'clear_{level}', finish(reverb(place_notes(events, 1.6), 1.6, 0.3), 0.8))
 
+    # Line sweep: a soft airy whoosh that follows the band of light along the
+    # cleared line. Band-passed noise with a gentle swell, kept quiet.
+    t = t_axis(0.5)
+    noise = rng.standard_normal(len(t))
+    band = lowpass(noise, 2600) - lowpass(noise, 450)
+    swell = np.sin(np.pi * np.clip(t / 0.42, 0, 1)) ** 2
+    write('sweep', finish(reverb(band * swell, 0.8, 0.2), 0.32))
+
     # Extra sparkle layered on top when 2+ lines clear at once.
     events = [(k * 0.032, 0.6 * bell(penta(12 + (k % 5) + k // 5 * 2), 0.7, 1.4))
               for k in range(7)]

@@ -75,23 +75,47 @@ def gradient(size, top, bottom):
     return img
 
 
-def block(size, color):
-    """One glossy block (RGBA, size x size) matching the in-game BlockArt."""
+def block(size, color, variant=0):
+    """One hand-crafted tile (RGBA), matching the in-game BlockArt: bevelled
+    edges lit from the top left, a flat inset face, fine grain and a faint
+    scratch, with small per-variant differences."""
+    import random
+    r = random.Random(variant * 7919 + sum(color))
     s = size
+    color = shade(color, (r.random() - 0.5) * 10)
+    bevel = int(s * (0.11 + r.random() * 0.025))
     img = Image.new('RGBA', (s, s), (0, 0, 0, 0))
-    r = int(s * 0.22)
     d = ImageDraw.Draw(img)
-    d.rounded_rectangle([0, 0, s - 1, s - 1], r, fill=shade(color, -34) + (255,))
-    face_h = int(s * 0.91)
-    face = gradient((s, face_h), shade(color, 22), color).convert('RGBA')
-    mask = Image.new('L', (s, face_h), 0)
-    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, face_h - 1], r, fill=255)
-    img.paste(face, (0, 0), mask)
-    gloss = Image.new('RGBA', (s, s), (0, 0, 0, 0))
-    ImageDraw.Draw(gloss).rounded_rectangle(
-        [int(s * 0.16), int(s * 0.1), int(s * 0.84), int(s * 0.3)], int(s * 0.1),
-        fill=(255, 255, 255, 82))
-    return Image.alpha_composite(img, gloss)
+    d.rectangle([0, 0, s, s], fill=shade(color, -26) + (255,))
+    d.polygon([(0, 0), (s, 0), (s - bevel, bevel), (bevel, bevel)], fill=shade(color, 30) + (255,))
+    d.polygon([(0, 0), (bevel, bevel), (bevel, s - bevel), (0, s)], fill=shade(color, 15) + (255,))
+    d.polygon([(s, 0), (s, s), (s - bevel, s - bevel), (s - bevel, bevel)], fill=shade(color, -18) + (255,))
+    d.polygon([(0, s), (bevel, s - bevel), (s - bevel, s - bevel), (s, s)], fill=shade(color, -38) + (255,))
+    face = gradient((s - 2 * bevel, s - 2 * bevel), shade(color, 9), shade(color, -5)).convert('RGBA')
+    fmask = Image.new('L', face.size, 0)
+    ImageDraw.Draw(fmask).rounded_rectangle([0, 0, face.size[0] - 1, face.size[1] - 1], int(s * 0.06), fill=255)
+    img.paste(face, (bevel, bevel), fmask)
+    # Grain.
+    grain = Image.new('RGBA', (s, s), (0, 0, 0, 0))
+    gd = ImageDraw.Draw(grain)
+    for _ in range(int(s * s / 30)):
+        x, y = r.random() * s, r.random() * s
+        k = max(1, int(s * (0.006 + r.random() * 0.012)))
+        dark = r.random() < 0.5
+        a = int(255 * (0.025 + r.random() * (0.04 if dark else 0.06)))
+        gd.rectangle([x, y, x + k, y + k], fill=((0, 0, 0) if dark else (255, 255, 255)) + (a,))
+    for _ in range(2):
+        x, y = bevel + r.random() * (s - 2 * bevel), bevel + r.random() * (s - 2 * bevel)
+        ln = s * (0.08 + r.random() * 0.12)
+        gd.line([x, y, x + ln * 0.85, y - ln * 0.4], fill=(255, 255, 255, 26), width=max(1, int(s * 0.008)))
+    img = Image.alpha_composite(img, grain)
+    # Rounded tile corners + thin darker outline.
+    mask = Image.new('L', (s, s), 0)
+    ImageDraw.Draw(mask).rounded_rectangle([0, 0, s - 1, s - 1], int(s * 0.15), fill=255)
+    img.putalpha(mask)
+    ImageDraw.Draw(img).rounded_rectangle([0, 0, s - 1, s - 1], int(s * 0.15),
+                                          outline=shade(color, -55) + (90,), width=max(1, int(s * 0.012)))
+    return img
 
 
 def logo(size, mono=False):
@@ -106,8 +130,8 @@ def logo(size, mono=False):
                                              cell * 0.22, fill=70)
     img = Image.alpha_composite(
         img, soft_layer((s, s), [shadow_shape(r, c) for r, c, _ in LOGO], (70, 50, 120), cell * 0.06))
-    for r, c, k in LOGO:
-        b = block(int(cell - gap), (255, 255, 255) if mono else BLOCKS[k])
+    for i, (r, c, k) in enumerate(LOGO):
+        b = block(int(cell - gap), (255, 255, 255) if mono else BLOCKS[k], i)
         if mono:  # Android 13 themed icons: a plain white silhouette
             white = Image.new('RGB', b.size, (255, 255, 255))
             b = Image.merge('RGBA', (*white.split(), b.getchannel('A')))

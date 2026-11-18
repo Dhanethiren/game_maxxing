@@ -61,6 +61,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     vsync: this,
     duration: const Duration(milliseconds: 320),
   );
+  late final _lossAnim = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  );
+
+  /// Bumped on every drag move so only the board and the floating piece
+  /// repaint (not the whole screen): keeps dragging smooth.
+  final _repaint = ValueNotifier<int>(0);
+  List<int> _sweepRows = [], _sweepCols = [];
+  bool _noMoves = false;
+  double _trayCell = 0;
+  bool _prewarmed = false;
   Map<Cell, int> _clearing = {};
   Cell? _clearOrigin;
   Set<Cell> _settling = {};
@@ -97,9 +109,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _lastEventId = game.lastEvent?.id ?? 0;
     game.addListener(_onGameChanged);
     app.profile.onGameStarted();
-    for (final c in [_clearAnim, _settleAnim, _shakeAnim]) {
-      c.addListener(() => setState(() {}));
-    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _prewarm());
     if (game.levelComplete) {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _handleLevelComplete(),
@@ -115,6 +125,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _clearAnim.dispose();
     _settleAnim.dispose();
     _shakeAnim.dispose();
+    _lossAnim.dispose();
+    _repaint.dispose();
     _effects.dispose();
     super.dispose();
   }
@@ -143,6 +155,24 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _settleAnim.forward(from: 0);
 
     if (e.lines > 0) {
+      final cleared = e.clearedColors.keys.toSet();
+      final n = game.boardSize;
+      _sweepRows = [
+        for (var r = 0; r < n; r++)
+          if (List.generate(
+            n,
+            (c) => cleared.contains(Cell(r, c)),
+          ).every((x) => x))
+            r,
+      ];
+      _sweepCols = [
+        for (var c = 0; c < n; c++)
+          if (List.generate(
+            n,
+            (r) => cleared.contains(Cell(r, c)),
+          ).every((x) => x))
+            c,
+      ];
       _clearing = e.clearedColors;
       _clearOrigin = e.origin;
       _clearAnim.forward(from: 0);
@@ -291,6 +321,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     if (_dragIndex != index) return;
     _dragPointer = pointer;
     _updateHover();
+    _repaint.value++;
   }
 
   void _updateHover() {
@@ -336,11 +367,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     } else if (row != null) {
       preview = _previewClear;
     }
-    setState(() {
-      _hoverRow = row;
-      _hoverCol = col;
-      _previewClear = preview;
-    });
+    _hoverRow = row;
+    _hoverCol = col;
+    _previewClear = preview;
+    _repaint.value++;
   }
 
   void _dragEnd(int index) {
@@ -371,9 +401,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   // ------------------------------------------------------ game over / revive
 
+  /// Out of moves: the board fades to grey in a gentle wave, "No more moves"
+  /// appears with a soft sound, then the revive offer or the loss menu.
   Future<void> _handleGameOver() async {
-    setState(() => _busy = true);
-    await Future<void>.delayed(const Duration(milliseconds: 650));
+    setState(() {
+      _busy = true;
+      _noMoves = true;
+    });
+    app.sound.play(Sfx.gameover);
+    app.mediumHaptic();
+    _lossAnim.forward(from: 0);
+    await Future<void>.delayed(const Duration(milliseconds: 1600));
     if (!mounted) return;
 
     if (game.canRevive && app.offers.ads.isReady) {
@@ -416,13 +454,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _clearAnim.forward(from: 0);
     app.sound.play(Sfx.revive);
     app.mediumHaptic();
+    _lossAnim.reverse();
     if (!_journey) app.profile.saveGame(game.toJson());
-    setState(() => _busy = false);
+    setState(() {
+      _busy = false;
+      _noMoves = false;
+    });
     if (game.levelComplete) _handleLevelComplete();
   }
 
   Future<void> _finishGame() async {
-    app.sound.play(Sfx.gameover);
     final p = app.profile;
     if (_journey) {
       await p.failLevel();
@@ -557,8 +598,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _showGameOver = false;
       _newBest = false;
       _levelWon = false;
+      _noMoves = false;
       _praise = null;
     });
+    _lossAnim.value = 0;
     game.newGame();
   }
 
@@ -577,7 +620,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       case PauseChoice.restart:
         if (!_journey) await app.profile.clearSavedGame();
         app.profile.onGameStarted();
-        setState(() => _praise = null);
+        _lossAnim.value = 0;
+        setState(() {
+          _praise = null;
+          _noMoves = false;
+        });
         game.newGame();
       case PauseChoice.home:
         if (!_journey && !game.isGameOver) {
@@ -606,7 +653,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               children: [
                 LayoutBuilder(builder: (context, c) => _layout(c)),
                 Positioned.fill(child: EffectsLayer(controller: _effects)),
-                if (_dragIndex != null) _draggedPiece(),
+                if (_dragIndex != null)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: _repaint,
+                        builder: (context, _, _) =>
+                            Stack(children: [_draggedPiece()]),
+                      ),
+                    ),
+                  ),
                 if (_showGameOver) Positioned.fill(child: _gameOverPanel()),
               ],
             ),
@@ -622,14 +678,22 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final topBar = 72.0 * s;
     final wide = w > h * 0.95;
 
-    final shake = _shakeAnim.isAnimating
-        ? Offset(
-            sin(_shakeAnim.value * pi * 10) *
-                _shakeAmp *
-                (1 - _shakeAnim.value),
-            0,
-          )
-        : Offset.zero;
+    // Only the board shakes, driven by its own AnimatedBuilder.
+    Widget shaking(Widget board) => AnimatedBuilder(
+      animation: _shakeAnim,
+      builder: (context, child) => Transform.translate(
+        offset: _shakeAnim.isAnimating
+            ? Offset(
+                sin(_shakeAnim.value * pi * 10) *
+                    _shakeAmp *
+                    (1 - _shakeAnim.value),
+                0,
+              )
+            : Offset.zero,
+        child: child,
+      ),
+      child: board,
+    );
 
     if (!wide) {
       // Portrait phone / tablet. Budget the height so everything always fits,
@@ -643,21 +707,23 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       final cell = BoardPainter.cellSize(boardSide, game.boardSize);
       final trayHeight = max(
         60.0,
-        min(cell * 3.6, h - topBar - boardSide - hint - 12 * s),
+        min(cell * 3.0, h - topBar - boardSide - hint - 12 * s),
       );
       return Column(
         children: [
           SizedBox(height: topBar, child: _topBar()),
           const Spacer(),
-          Transform.translate(offset: shake, child: _boardArea(boardSide)),
-          const Spacer(),
+          shaking(_boardArea(boardSide)),
+          // Pieces sit close under the board (like the genre leaders), with
+          // the spare room below rather than in between.
+          SizedBox(height: cell * 0.3),
           SizedBox(
             height: trayHeight,
             width: min(w, boardSide + 48 * s),
             child: _tray(Axis.horizontal, cell),
           ),
           SizedBox(height: hint, child: _tutorialHint()),
-          const Spacer(),
+          const Spacer(flex: 2),
         ],
       );
     }
@@ -669,7 +735,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return Row(
       children: [
         const Spacer(),
-        Transform.translate(offset: shake, child: _boardArea(boardSide)),
+        shaking(_boardArea(boardSide)),
         SizedBox(width: 24 * s),
         SizedBox(
           width: min(w - boardSide - 48 * s, cell * 4.5),
@@ -828,13 +894,30 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _boardArea(double side) {
+  BoardVisuals _visuals() {
     final hoverPiece = _dragIndex == null ? null : game.tray[_dragIndex!];
     final ghost = <Cell>{
       if (hoverPiece != null && _hoverRow != null)
         for (final c in hoverPiece.cells)
           Cell(_hoverRow! + c.row, _hoverCol! + c.col),
     };
+    return BoardVisuals(
+      ghost: ghost,
+      ghostColor: ghost.isEmpty ? null : hoverPiece!.colorIndex,
+      previewClear: ghost.isEmpty ? const {} : _previewClear,
+      clearing: _clearing,
+      clearOrigin: _clearOrigin,
+      clearProgress: _clearAnim.isAnimating ? _clearAnim.value : 1,
+      settling: _settling,
+      settleProgress: _settleAnim.isAnimating ? _settleAnim.value : 1,
+      gems: game.gems,
+      sweepRows: _sweepRows,
+      sweepCols: _sweepCols,
+      lossProgress: _lossAnim.value,
+    );
+  }
+
+  Widget _boardArea(double side) {
     final praise = _praise;
     final s = uiScale(context);
     return SizedBox(
@@ -856,26 +939,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   board: game.board,
                   theme: app.theme,
                   dpr: MediaQuery.devicePixelRatioOf(context),
-                  visuals: BoardVisuals(
-                    ghost: ghost,
-                    ghostColor: ghost.isEmpty ? null : hoverPiece!.colorIndex,
-                    previewClear: ghost.isEmpty ? const {} : _previewClear,
-                    clearing: _clearing,
-                    clearOrigin: _clearOrigin,
-                    clearProgress: _clearAnim.isAnimating
-                        ? _clearAnim.value
-                        : 1,
-                    settling: _settling,
-                    settleProgress: _settleAnim.isAnimating
-                        ? _settleAnim.value
-                        : 1,
-                    gems: game.gems,
-                  ),
+                  visualsOf: _visuals,
+                  repaint: Listenable.merge([
+                    _clearAnim,
+                    _settleAnim,
+                    _lossAnim,
+                    _repaint,
+                  ]),
                 ),
               ),
             ),
           ),
-          if (praise?.praise != null)
+          if (praise?.praise != null && !_noMoves)
             PraiseBanner(
               key: ValueKey(praise!.id),
               text: praise.praise!,
@@ -883,6 +958,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               color: app.theme.accent,
               fontSize: (praise.perfect ? 40 : 34) * s,
             ),
+          if (_noMoves && !_showGameOver)
+            _NoMovesBanner(color: app.theme.text, fontSize: 32 * s),
         ],
       ),
     );
@@ -897,6 +974,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             ? c.maxHeight
             : c.maxHeight / slots;
         final trayCell = min(boardCell * 0.62, min(slotW, slotH) / 5.4);
+        _trayCell = trayCell;
         final children = [
           for (var i = 0; i < slots; i++)
             SizedBox(
@@ -963,6 +1041,27 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     );
   }
 
+  /// Draws every tile image this screen needs during the first frames, a few
+  /// per frame, so the first clears and drags never stutter on slow phones.
+  Future<void> _prewarm() async {
+    if (_prewarmed || !mounted) return;
+    _prewarmed = true;
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final sizes = {_boardCell * 0.94, if (_trayCell > 0) _trayCell * 0.94};
+    var n = 0;
+    for (final color in app.theme.blocks) {
+      for (var v = 0; v < BlockArt.variants; v++) {
+        for (final size in sizes) {
+          BlockArt.image(color, size, dpr, v);
+          if (++n % 6 == 0) {
+            await WidgetsBinding.instance.endOfFrame;
+            if (!mounted) return;
+          }
+        }
+      }
+    }
+  }
+
   bool get _hintVisible =>
       !app.profile.tutorialDone && game.movesMade == 0 && !_showGameOver;
 
@@ -1019,11 +1118,24 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       ..._levelResultHeader(s)
                     else ...[
                       Text(
-                        _newBest ? 'New best!' : 'Well played',
+                        'No more moves',
                         style: TextStyle(
                           fontSize: 28 * s,
                           fontWeight: FontWeight.w800,
                           color: theme.text,
+                        ),
+                      ),
+                      SizedBox(height: 4 * s),
+                      Text(
+                        _newBest
+                            ? 'New best score!'
+                            : 'Well played. Take a breath.',
+                        style: TextStyle(
+                          fontSize: 15 * s,
+                          fontWeight: _newBest
+                              ? FontWeight.w800
+                              : FontWeight.w500,
+                          color: _newBest ? theme.accent : theme.textSoft,
                         ),
                       ),
                       SizedBox(height: 6 * s),
@@ -1101,7 +1213,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       )
                     else
                       SoftButton(
-                        label: _journey ? 'Try again' : 'Play again',
+                        label: 'Try again',
                         icon: Icons.replay_rounded,
                         large: true,
                         onPressed: _playAgain,
@@ -1128,7 +1240,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final level = game.level!;
     return [
       Text(
-        _levelWon ? 'Level ${level.number} complete!' : 'Out of space',
+        _levelWon ? 'Level ${level.number} complete!' : 'No more moves',
         textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: 26 * s,
@@ -1161,7 +1273,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         )
       else
         Text(
-          'No piece fits, but every try teaches the board.\n'
+          'None of your pieces fit anywhere.\n'
           '${level.goalText}: ${(game.goalProgress * 100).round()}% done',
           textAlign: TextAlign.center,
           style: TextStyle(
@@ -1191,4 +1303,48 @@ class _GemIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_GemIconPainter old) => false;
+}
+
+/// "No more moves" banner that fades and drops in over the greyed board.
+class _NoMovesBanner extends StatelessWidget {
+  const _NoMovesBanner({required this.color, required this.fontSize});
+  final Color color;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 600),
+        curve: Curves.easeOutBack,
+        builder: (context, v, child) => Opacity(
+          opacity: v.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, (1 - v) * -24),
+            child: child,
+          ),
+        ),
+        child: Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: fontSize * 0.8,
+            vertical: fontSize * 0.45,
+          ),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.9),
+            borderRadius: BorderRadius.circular(fontSize),
+            boxShadow: liftShadow(color),
+          ),
+          child: Text(
+            'No more moves',
+            style: TextStyle(
+              fontSize: fontSize,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

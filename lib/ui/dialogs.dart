@@ -283,7 +283,32 @@ Future<void> showSettings(BuildContext context) async {
 Future<int> showDailyReward(BuildContext context) async {
   final app = AppScope.read(context);
   final day = app.profile.claimableDailyDay();
-  if (day == null) return 0;
+  if (day == null) {
+    // Already claimed today: show the streak instead.
+    await _softDialog<void>(
+      context,
+      (context) => _DialogCard(
+        children: [
+          Icon(
+            Icons.local_fire_department_rounded,
+            color: const Color(0xFFF08A5D),
+            size: 48 * uiScale(context),
+          ),
+          const SizedBox(height: 8),
+          _title(context, '${app.profile.dailyStreak}-day streak'),
+          const SizedBox(height: 8),
+          _body(
+            context,
+            "Today's reward is collected. Come back tomorrow for day "
+            '${app.profile.dailyStreak % 7 + 1}.',
+          ),
+          const SizedBox(height: 18),
+          SoftButton(label: 'OK', onPressed: () => Navigator.pop(context)),
+        ],
+      ),
+    );
+    return 0;
+  }
   final base = Progression.dailyRewards[day - 1];
   final decision = app.offers.decide(OfferPlacement.dailyBonus);
   final adLabel = switch (decision.variant) {
@@ -386,4 +411,84 @@ Future<int> showDailyReward(BuildContext context) async {
   }
   if ((claimed ?? 0) > 0) app.sound.play(Sfx.levelup);
   return claimed ?? 0;
+}
+
+// -------------------------------------------------------------------- goals
+
+/// Today's three goals with progress bars.
+Future<void> showGoals(BuildContext context) {
+  final app = AppScope.read(context);
+  final missions = app.profile.missions().missions;
+  return _softDialog<void>(
+    context,
+    (context) => _DialogCard(
+      children: [
+        _title(context, "Today's goals"),
+        const SizedBox(height: 6),
+        _body(context, 'New goals every day. Coins are paid automatically.'),
+        const SizedBox(height: 16),
+        for (final m in missions) _MissionRow(m),
+        const SizedBox(height: 8),
+        SoftButton(label: 'OK', onPressed: () => Navigator.pop(context)),
+      ],
+    ),
+  );
+}
+
+class _MissionRow extends StatelessWidget {
+  const _MissionRow(this.mission);
+  final Mission mission;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = AppScope.of(context).theme;
+    final s = uiScale(context);
+    return Padding(
+      padding: EdgeInsets.only(bottom: 14 * s),
+      child: Row(
+        children: [
+          Icon(
+            mission.done
+                ? Icons.check_circle_rounded
+                : Icons.radio_button_unchecked_rounded,
+            color: mission.done ? theme.accent : theme.textSoft,
+            size: 22 * s,
+          ),
+          SizedBox(width: 10 * s),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  mission.title,
+                  style: TextStyle(fontSize: 14 * s, color: theme.text),
+                ),
+                SizedBox(height: 4 * s),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: mission.fraction,
+                    minHeight: 5 * s,
+                    backgroundColor: theme.emptyCell,
+                    color: theme.accent,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(width: 10 * s),
+          Icon(Icons.circle, color: const Color(0xFFF2C14E), size: 14 * s),
+          SizedBox(width: 4 * s),
+          Text(
+            '${mission.reward}',
+            style: TextStyle(
+              fontSize: 14 * s,
+              fontWeight: FontWeight.w700,
+              color: theme.text,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

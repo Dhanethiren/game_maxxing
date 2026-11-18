@@ -8,6 +8,7 @@ import 'package:calm_grid/game/level.dart';
 import 'package:calm_grid/main.dart';
 import 'package:calm_grid/services/player_profile.dart';
 import 'package:calm_grid/services/reward_offers.dart';
+import 'package:calm_grid/services/review_prompter.dart';
 import 'package:calm_grid/ui/board_painter.dart';
 import 'package:calm_grid/ui/game_screen.dart';
 import 'package:calm_grid/ui/widgets.dart';
@@ -23,6 +24,7 @@ AppServices makeServices({Map<String, Object>? stored}) {
       profile: profile,
     ),
     sound: SilentSoundService(),
+    review: NoReviewService(),
   );
 }
 
@@ -301,5 +303,37 @@ void main() {
     await tester.tap(find.text('Daily'));
     await tester.pump(const Duration(seconds: 1));
     expect(find.textContaining('day streak'), findsOneWidget);
+  });
+
+  testWidgets('new best score asks for a review only for settled players', (
+    tester,
+  ) async {
+    setScreen(tester, const Size(390, 844));
+    // A player who installed a week ago and has played plenty.
+    final services = makeServices(
+      stored: {
+        'gamesPlayed': 12,
+        'firstOpenAt': DateTime.now()
+            .subtract(const Duration(days: 7))
+            .millisecondsSinceEpoch,
+      },
+    );
+    final review = services.review as NoReviewService;
+    final game = GameState(random: Random(1));
+    await tester.pumpWidget(gameApp(services, game));
+    playUntilLost(game, Random(8));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.tap(find.text('No thanks'));
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('Try again'), findsOneWidget);
+    expect(
+      services.profile.bestScore,
+      game.score,
+      reason: 'first game = new best',
+    );
+    expect(review.requests, 1);
+    expect(services.profile.unlockedAchievements, contains('first_block'));
   });
 }

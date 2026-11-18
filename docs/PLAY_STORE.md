@@ -151,34 +151,14 @@ blocking items automatically.
 
 ## 5. Store listing text
 
-- **App name** (23/30): `Calm Grid: Block Puzzle`. See the trademark note
-  above.
-- **Short description** (78/80): `Relaxing block puzzle. No timer, no rush: fill lines, clear the board, unwind.`
-- **Full description**:
+The current, discovery-optimised title, descriptions, tags and graphics list
+are in **[PLAY_DISCOVERY.md, section 5](PLAY_DISCOVERY.md#5-store-listing-text-updated)**.
 
-  > Calm Grid is a gentle block puzzle for quiet moments. Drag blocks onto
-  > the 8×8 board, fill a row or column, and watch it clear with a soft chime.
-  > There's no timer and no rush: play at your own pace.
-  >
-  > • Classic mode: an endless, relaxing chase for your best score
-  > • Journey mode: hand-crafted-feeling levels with score and gem goals,
-  >   1–3 stars and win-streak bonuses
-  > • Soothing pentatonic sounds that rise with every combo, plus calm music
-  >   you can switch off
-  > • Daily rewards, a daily spin and three new goals every day
-  > • Six colour themes to unlock, including a dark Midnight theme
-  > • Your game saves after every move: close it anytime and pick up later
-  > • Plays offline; works on phones and tablets
-  >
-  > Calm Grid is free and supported by optional ads. Most ads are your
-  > choice: watch one to continue a run or double your coins.
-
-- **Graphics**:
-  - icon: `store/icon-512.png`
-  - feature graphic: `store/feature-graphic.png`
-  - phone screenshots: `store/screenshots/phone_*.png`
-
-  For a better tablet listing, add 7" and 10" screenshots.
+Graphics:
+- icon: `store/icon-512.png`
+- feature graphic: `store/feature-graphic.png`
+- phone screenshots: `store/screenshots/`
+- tablet screenshots (portrait and landscape): `store/screenshots_tablet/`
 
 ## 6. If you also want the Apple App Store (iPhone)
 

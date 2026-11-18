@@ -2,7 +2,9 @@ import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../audio/sound_service.dart';
+import '../services/achievements.dart';
 import '../services/player_profile.dart';
+import '../services/review_prompter.dart';
 import '../services/reward_offers.dart';
 import '../ui/game_theme.dart';
 
@@ -12,7 +14,8 @@ class AppServices {
     required this.profile,
     required this.offers,
     required this.sound,
-  }) {
+    ReviewService? review,
+  }) : review = review ?? ReviewService.create() {
     _syncSettings();
     profile.addListener(_syncSettings);
   }
@@ -20,6 +23,26 @@ class AppServices {
   final PlayerProfile profile;
   final RewardOffers offers;
   final SoundService sound;
+  final ReviewService review;
+
+  /// Checks lifetime-stat achievements (Journey, gems, streak...) and pays
+  /// any new ones. Returns those unlocked now.
+  Future<List<Achievement>> checkStatAchievements() =>
+      profile.unlock(AchievementRules.fromStats(profile.achievementStats));
+
+  /// Asks for a Play rating if this is a good moment (see [ReviewPolicy]).
+  Future<void> maybeAskForReview({required bool happyMoment}) async {
+    final ask = ReviewPolicy.shouldAsk(
+      happyMoment: happyMoment,
+      gamesPlayed: profile.gamesPlayed,
+      firstOpenAt: profile.firstOpenAt,
+      lastPromptAt: profile.lastReviewPromptAt,
+      now: DateTime.now(),
+    );
+    if (!ask) return;
+    await profile.markReviewPrompted();
+    await review.requestReview();
+  }
 
   GameTheme get theme => GameTheme.byId(profile.selectedTheme);
 

@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import '../app/app_scope.dart';
 import '../audio/sound_service.dart';
 import '../ml/offer_optimizer.dart';
+import '../services/achievements.dart';
 import '../services/progression.dart';
 import 'widgets.dart';
 
@@ -269,7 +270,13 @@ Future<void> showSettings(BuildContext context) async {
             label: const Text('Privacy options'),
           ),
         ],
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: app.review.openStoreListing,
+          icon: const Icon(Icons.star_rate_rounded),
+          label: const Text('Rate Calm Grid'),
+        ),
+        const SizedBox(height: 8),
         SoftButton(label: 'Done', onPressed: () => Navigator.pop(context)),
       ],
     ),
@@ -409,7 +416,10 @@ Future<int> showDailyReward(BuildContext context) async {
   if (!answered && app.offers.ads.isReady) {
     await app.offers.recordAnswer(decision, accepted: false);
   }
-  if ((claimed ?? 0) > 0) app.sound.play(Sfx.levelup);
+  if ((claimed ?? 0) > 0) {
+    app.sound.play(Sfx.levelup);
+    await app.checkStatAchievements(); // 7-day streak
+  }
   return claimed ?? 0;
 }
 
@@ -430,6 +440,18 @@ Future<void> showGoals(BuildContext context) {
         for (final m in missions) _MissionRow(m),
         const SizedBox(height: 8),
         SoftButton(label: 'OK', onPressed: () => Navigator.pop(context)),
+        const SizedBox(height: 6),
+        TextButton.icon(
+          onPressed: () {
+            Navigator.pop(context);
+            showAchievements(context);
+          },
+          icon: const Icon(Icons.emoji_events_rounded),
+          label: Text(
+            'Achievements  ${app.profile.unlockedAchievements.length}/'
+            '${Achievement.values.length}',
+          ),
+        ),
       ],
     ),
   );
@@ -491,4 +513,68 @@ class _MissionRow extends StatelessWidget {
       ),
     );
   }
+}
+
+// ------------------------------------------------------------- achievements
+
+Future<void> showAchievements(BuildContext context) {
+  final app = AppScope.read(context);
+  final have = app.profile.unlockedAchievements;
+  return _softDialog<void>(context, (context) {
+    final theme = AppScope.of(context).theme;
+    final s = uiScale(context);
+    return _DialogCard(
+      children: [
+        _title(context, 'Achievements'),
+        const SizedBox(height: 4),
+        _body(
+          context,
+          '${have.length} of ${Achievement.values.length} unlocked '
+          '· +${Achievement.reward} coins each',
+        ),
+        const SizedBox(height: 14),
+        for (final a in Achievement.values)
+          Padding(
+            padding: EdgeInsets.only(bottom: 10 * s),
+            child: Row(
+              children: [
+                Icon(
+                  have.contains(a.id)
+                      ? Icons.emoji_events_rounded
+                      : Icons.lock_outline_rounded,
+                  color: have.contains(a.id)
+                      ? const Color(0xFFF2C14E)
+                      : theme.textSoft,
+                  size: 24 * s,
+                ),
+                SizedBox(width: 10 * s),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        a.title,
+                        style: TextStyle(
+                          fontSize: 14 * s,
+                          fontWeight: FontWeight.w700,
+                          color: theme.text,
+                        ),
+                      ),
+                      Text(
+                        a.description,
+                        style: TextStyle(
+                          fontSize: 12.5 * s,
+                          color: theme.textSoft,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        SoftButton(label: 'OK', onPressed: () => Navigator.pop(context)),
+      ],
+    );
+  });
 }

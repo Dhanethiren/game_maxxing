@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'achievements.dart';
 import 'progression.dart';
 
 /// Minimal key-value storage used by [PlayerProfile].
@@ -243,6 +244,59 @@ class PlayerProfile extends ChangeNotifier {
     extra ? 'extraSpinDay' : 'spinDay',
     Progression.dayKey(DateTime.now()),
   );
+
+  // ------------------------------------------------------------- achievements
+  Set<String> get unlockedAchievements => {
+    ...?_str('achievements')?.split(',').where((x) => x.isNotEmpty),
+  };
+
+  int get lifetimeLines => _int('lifetimeLines');
+  int get lifetimeGems => _int('lifetimeGems');
+
+  Future<void> addLifetime({int lines = 0, int gems = 0}) async {
+    if (lines > 0) await _store.set('lifetimeLines', lifetimeLines + lines);
+    if (gems > 0) await _store.set('lifetimeGems', lifetimeGems + gems);
+  }
+
+  AchievementStats get achievementStats => AchievementStats(
+    lifetimeLines: lifetimeLines,
+    lifetimeGems: lifetimeGems,
+    journeyLevelsDone: journeyLevel - 1,
+    journeyStars: journeyStars.values.fold(0, (a, b) => a + b),
+    dailyStreak: dailyStreak,
+  );
+
+  /// Unlocks [candidates] not yet earned, pays coins, and returns the new ones.
+  Future<List<Achievement>> unlock(Iterable<Achievement> candidates) async {
+    final have = unlockedAchievements;
+    final fresh = [
+      for (final a in candidates)
+        if (!have.contains(a.id)) a,
+    ];
+    if (fresh.isEmpty) return fresh;
+    await _set(
+      'achievements',
+      {...have, for (final a in fresh) a.id}.join(','),
+    );
+    await addCoins(Achievement.reward * fresh.length);
+    return fresh;
+  }
+
+  // ------------------------------------------------------------ review prompt
+  DateTime get firstOpenAt {
+    final ms = _store.get('firstOpenAt') as int?;
+    if (ms == null) {
+      final now = DateTime.now();
+      _store.set('firstOpenAt', now.millisecondsSinceEpoch);
+      return now;
+    }
+    return DateTime.fromMillisecondsSinceEpoch(ms);
+  }
+
+  DateTime? get lastReviewPromptAt => _time('lastReviewPromptAt');
+
+  Future<void> markReviewPrompted() =>
+      _set('lastReviewPromptAt', DateTime.now().millisecondsSinceEpoch);
 
   // -------------------------------------------------- free coins (ad), capped
   static const freeCoinAdsPerDay = 5;

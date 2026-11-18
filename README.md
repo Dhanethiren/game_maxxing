@@ -52,7 +52,9 @@ tool/generate_sounds.py      synthesises every sound from scratch (numpy)
 tool/generate_icons.py       draws the app icon and store graphics (Pillow)
 tool/preflight.py            release checklist: run before every Play upload
 store/                       Play Store icon, feature graphic and screenshots
-docs/PLAY_STORE.md           policy audit, launch steps, form answers, listing text
+docs/PLAY_STORE.md           policy audit, launch steps, form answers, legal risk
+docs/PLAY_DISCOVERY.md       how Play ranks and recommends apps, and what we changed
+docs/SOUNDS.md               every sound file and exactly when it plays
 test/                        unit and widget tests (5 screen sizes)
 ```
 

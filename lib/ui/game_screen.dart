@@ -10,6 +10,7 @@ import '../game/game_state.dart';
 import '../game/level.dart';
 import '../game/piece.dart';
 import '../ml/offer_optimizer.dart';
+import '../services/achievements.dart';
 import '../services/progression.dart';
 import 'block_painter.dart';
 import 'board_painter.dart';
@@ -73,6 +74,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   bool _noMoves = false;
   double _trayCell = 0;
   bool _prewarmed = false;
+  Timer? _reviewTimer;
   Map<Cell, int> _clearing = {};
   Cell? _clearOrigin;
   Set<Cell> _settling = {};
@@ -126,6 +128,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _settleAnim.dispose();
     _shakeAnim.dispose();
     _lossAnim.dispose();
+    _reviewTimer?.cancel();
     _repaint.dispose();
     _effects.dispose();
     super.dispose();
@@ -203,6 +206,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       WidgetsBinding.instance.addPostFrameCallback((_) => _spawnGemEffects(e));
     }
 
+    _trackAchievements(e);
+
     if (!app.profile.tutorialDone) app.profile.setTutorialDone();
     if (!_journey && !game.isGameOver) app.profile.saveGame(game.toJson());
   }
@@ -248,6 +253,41 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       theme.accent,
       26 * uiScale(context),
     );
+  }
+
+  Future<void> _trackAchievements(PlaceEvent e) async {
+    await app.profile.addLifetime(lines: e.lines, gems: e.gemsCollected.length);
+    final fresh = await app.profile.unlock({
+      ...AchievementRules.onPlace(e, game.score),
+      ...AchievementRules.fromStats(app.profile.achievementStats),
+    });
+    _announceAchievements(fresh);
+  }
+
+  void _announceAchievements(List<Achievement> fresh) {
+    for (final a in fresh) {
+      app.sound.play(Sfx.coin);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: app.theme.text,
+          duration: const Duration(seconds: 2),
+          content: Row(
+            children: [
+              const Icon(Icons.emoji_events_rounded, color: Color(0xFFF2C14E)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Achievement: ${a.title}  +${Achievement.reward} coins',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
   }
 
   void _announceMissions(List<Mission> done) {
@@ -502,6 +542,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _showGameOver = true;
       _busy = false;
     });
+    _askForReviewLater(happy: _newBest);
+  }
+
+  /// A rating request, if appropriate, once the result panel has settled.
+  void _askForReviewLater({required bool happy}) {
+    if (!happy) return;
+    _reviewTimer?.cancel();
+    _reviewTimer = Timer(const Duration(milliseconds: 1800), () {
+      if (mounted && _showGameOver) {
+        app.maybeAskForReview(happyMoment: true);
+      }
+    });
   }
 
   /// Journey: the goal was reached. Celebrate, rate with stars, pay coins.
@@ -525,6 +577,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     }
     _stars = level.starsFor(game.movesMade);
     _coinsEarned = await app.profile.completeLevel(level.number, _stars);
+    _announceAchievements(await app.checkStatAchievements());
     await _endOfGameBookkeeping(saveScore: false);
     _doubleDecision = app.offers.decide(OfferPlacement.doubleCoins, game);
     _doubleAnswered = false;
@@ -539,6 +592,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _showGameOver = true;
       _busy = false;
     });
+    _askForReviewLater(happy: _stars == 3);
   }
 
   /// XP, missions and counters shared by every way a game can end.
@@ -602,6 +656,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _praise = null;
     });
     _lossAnim.value = 0;
+    _reviewTimer?.cancel();
     game.newGame();
   }
 

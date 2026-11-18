@@ -63,9 +63,17 @@ class _CalmGridAppState extends State<CalmGridApp> {
 
   Future<void> _boot() async {
     try {
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
+      // Phones play in portrait. Tablets and foldables may rotate: Play ranks
+      // apps that meet its large-screen quality guidelines (both orientations,
+      // no letterboxing) higher on those devices, and the game has a
+      // landscape layout for them.
+      final view = WidgetsBinding.instance.platformDispatcher.views.first;
+      final shortest = view.physicalSize.shortestSide / view.devicePixelRatio;
+      if (shortest < 600) {
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+        ]);
+      }
     } catch (e, s) {
       _report(e, s);
     }

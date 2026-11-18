@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import 'board.dart';
+import 'level.dart';
 import 'piece.dart';
 
 /// Everything that happened in one placement, so the UI can play the right
@@ -18,6 +19,7 @@ class PlaceEvent {
     required this.points,
     required this.perfect,
     required this.origin,
+    this.gemsCollected = const {},
   });
 
   final int id;
@@ -36,6 +38,9 @@ class PlaceEvent {
   /// Where the piece landed (top-left), for effects that radiate outwards.
   final Cell origin;
 
+  /// Gems freed by this move (Journey gem levels).
+  final Set<Cell> gemsCollected;
+
   /// Short praise shown on screen, or null for a plain placement.
   String? get praise {
     if (perfect) return 'Perfect Clear!';
@@ -51,11 +56,47 @@ class PlaceEvent {
 
 /// All game rules and scoring. UI-free so it can be unit tested.
 class GameState extends ChangeNotifier {
-  GameState({Random? random, this.boardSize = 8})
+  GameState({Random? random, this.boardSize = 8, this.level})
     : _random = random ?? Random(),
       board = Board(size: boardSize) {
     _generator = PieceGenerator(_random);
+    _loadLevelBoard();
     _dealTray();
+  }
+
+  /// The Journey level being played, or null for Classic mode.
+  final LevelSpec? level;
+
+  /// Gems still on the board (Journey gem levels).
+  final Set<Cell> gems = {};
+  int gemsCollected = 0;
+
+  /// Journey: the level's goal has been reached.
+  bool get levelComplete {
+    final l = level;
+    if (l == null) return false;
+    return l.goal == LevelGoal.score
+        ? score >= l.target
+        : gemsCollected >= l.target;
+  }
+
+  /// 0..1 progress towards the level goal.
+  double get goalProgress {
+    final l = level;
+    if (l == null) return 0;
+    final done = l.goal == LevelGoal.score ? score : gemsCollected;
+    return (done / l.target).clamp(0, 1).toDouble();
+  }
+
+  void _loadLevelBoard() {
+    final l = level;
+    gems.clear();
+    gemsCollected = 0;
+    if (l == null) return;
+    for (var i = 0; i < l.cells.length; i++) {
+      board.setCell(i ~/ boardSize, i % boardSize, l.cells[i]);
+    }
+    gems.addAll(l.gems);
   }
 
   static const int traySize = 3;
@@ -105,6 +146,7 @@ class GameState extends ChangeNotifier {
 
   void newGame() {
     board.clear();
+    _loadLevelBoard();
     score = 0;
     combo = 0;
     maxCombo = 0;
@@ -123,7 +165,10 @@ class GameState extends ChangeNotifier {
 
   bool canPlace(int trayIndex, int row, int col) {
     final piece = tray[trayIndex];
-    return piece != null && !isGameOver && board.canPlace(piece, row, col);
+    return piece != null &&
+        !isGameOver &&
+        !levelComplete &&
+        board.canPlace(piece, row, col);
   }
 
   /// Places the tray piece. Returns false if the move is illegal.
@@ -153,6 +198,10 @@ class GameState extends ChangeNotifier {
     }
     score += points;
 
+    final freed = gems.intersection(result.clearedCells);
+    gems.removeAll(freed);
+    gemsCollected += freed.length;
+
     lastEvent = PlaceEvent(
       id: ++_eventId,
       placedCells: {
@@ -165,6 +214,7 @@ class GameState extends ChangeNotifier {
       points: points,
       perfect: perfect,
       origin: Cell(row, col),
+      gemsCollected: freed,
     );
 
     if (tray.every((p) => p == null)) _dealTray();
@@ -179,6 +229,10 @@ class GameState extends ChangeNotifier {
     if (!canRevive) return {};
     revivesUsed++;
     final cleared = board.clearFullestRows(3);
+    // Gems in the cleared rows count as collected, never lost.
+    final freed = gems.intersection(cleared);
+    gems.removeAll(freed);
+    gemsCollected += freed.length;
     isGameOver = false;
     combo = 0;
     _movesSinceClear = 0;
@@ -223,6 +277,10 @@ class GameState extends ChangeNotifier {
   }
 
   void _checkGameOver() {
+    if (levelComplete) {
+      isGameOver = false;
+      return;
+    }
     final remaining = tray.whereType<Piece>();
     isGameOver = remaining.isNotEmpty && !remaining.any(board.fitsAnywhere);
   }

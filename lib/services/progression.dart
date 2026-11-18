@@ -24,6 +24,32 @@ class Progression {
   static int coinsForGame(int score, int lines) =>
       max(1, score ~/ 25 + lines ~/ 2);
 
+  /// Coins for completing Journey level [level] with [stars], the first time.
+  /// A win streak (consecutive levels won without failing) adds up to +100%.
+  static int levelCoins(int level, int stars, int winStreak) {
+    final base = 20 + level * 2 + (stars - 1) * 10;
+    final streakBonus = 1 + 0.25 * min(winStreak, 4);
+    return (base * streakBonus).round();
+  }
+
+  /// Coins for replaying a level that was already completed.
+  static const replayCoins = 5;
+
+  /// Daily spin wheel prizes (coins) and how likely each is.
+  static const spinPrizes = [10, 25, 50, 15, 100, 20, 40, 200];
+  static const spinWeights = [20, 16, 9, 18, 4, 18, 12, 1];
+
+  /// Picks a wheel segment index using [spinWeights].
+  static int spinSegment(Random r) {
+    final total = spinWeights.reduce((a, b) => a + b);
+    var roll = r.nextInt(total);
+    for (var i = 0; i < spinWeights.length; i++) {
+      roll -= spinWeights[i];
+      if (roll < 0) return i;
+    }
+    return 0;
+  }
+
   /// Rewards for day 1..7 of a login streak. Day 7 is the "jackpot".
   static const dailyRewards = [20, 30, 40, 60, 80, 100, 250];
 

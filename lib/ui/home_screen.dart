@@ -7,6 +7,8 @@ import '../services/progression.dart';
 import 'block_painter.dart';
 import 'dialogs.dart';
 import 'game_screen.dart';
+import 'journey_screen.dart';
+import 'spin_wheel.dart';
 import 'themes_screen.dart';
 import 'widgets.dart';
 
@@ -180,33 +182,41 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     SizedBox(height: (compact ? 14 : 24) * s),
-                    if (p.hasSavedGame) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: SoftButton(
-                          label: 'Continue',
-                          icon: Icons.play_arrow_rounded,
-                          large: true,
-                          onPressed: () => _play(resume: true),
+                    // Two modes, like the genre leader: endless Classic and
+                    // goal-based Journey levels.
+                    SizedBox(
+                      width: double.infinity,
+                      child: SoftButton(
+                        label: p.hasSavedGame ? 'Continue Classic' : 'Classic',
+                        icon: Icons.play_arrow_rounded,
+                        large: true,
+                        onPressed: () => _play(resume: p.hasSavedGame),
+                      ),
+                    ),
+                    SizedBox(height: 10 * s),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SoftButton(
+                        label: 'Journey · Level ${p.journeyLevel}',
+                        icon: Icons.map_rounded,
+                        large: true,
+                        color: theme.blocks[0],
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const JourneyScreen(),
+                          ),
                         ),
                       ),
-                      SizedBox(height: 10 * s),
-                      SizedBox(
-                        width: double.infinity,
-                        child: SoftButton(
-                          label: 'New game',
-                          outlined: true,
-                          onPressed: () => _play(resume: false),
-                        ),
-                      ),
-                    ] else
-                      SizedBox(
-                        width: double.infinity,
-                        child: SoftButton(
-                          label: 'Play',
-                          icon: Icons.play_arrow_rounded,
-                          large: true,
-                          onPressed: () => _play(resume: false),
+                    ),
+                    if (p.hasSavedGame)
+                      TextButton(
+                        onPressed: () => _play(resume: false),
+                        child: Text(
+                          'New Classic game',
+                          style: TextStyle(
+                            color: theme.textSoft,
+                            fontSize: 14 * s,
+                          ),
                         ),
                       ),
                     SizedBox(height: 20 * s),
@@ -278,6 +288,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         },
                       ),
                     ),
+                    SizedBox(height: 12 * s),
+                    _SpinCard(),
                     SizedBox(height: 12 * s),
                     Panel(
                       child: Column(
@@ -455,4 +467,61 @@ class _LogoPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_LogoPainter old) => old.t != t || old.colors != colors;
+}
+
+/// "Daily spin" card on the home screen.
+class _SpinCard extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final app = AppScope.of(context);
+    final theme = app.theme;
+    final p = app.profile;
+    final s = uiScale(context);
+    final free = p.freeSpinAvailable;
+    final extra = p.extraSpinAvailable;
+    return GestureDetector(
+      onTap: () => showDailySpin(context),
+      child: Panel(
+        child: Row(
+          children: [
+            Icon(
+              Icons.donut_large_rounded,
+              color: theme.blocks[4],
+              size: 32 * s,
+            ),
+            SizedBox(width: 12 * s),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Daily spin',
+                    style: TextStyle(
+                      fontSize: 16 * s,
+                      fontWeight: FontWeight.w700,
+                      color: theme.text,
+                    ),
+                  ),
+                  Text(
+                    free
+                        ? 'Free spin ready: win up to 200 coins'
+                        : (extra
+                              ? 'One more spin with a short ad'
+                              : 'Back tomorrow'),
+                    style: TextStyle(fontSize: 13 * s, color: theme.textSoft),
+                  ),
+                ],
+              ),
+            ),
+            if (free || extra)
+              Icon(
+                Icons.chevron_right_rounded,
+                color: theme.textSoft,
+                size: 28 * s,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }

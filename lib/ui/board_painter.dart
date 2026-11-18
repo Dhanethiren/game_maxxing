@@ -18,6 +18,7 @@ class BoardVisuals {
     this.clearProgress = 1,
     this.settling = const {},
     this.settleProgress = 1,
+    this.gems = const {},
   });
 
   /// Cells the dragged piece would occupy.
@@ -37,6 +38,9 @@ class BoardVisuals {
   /// Cells that just landed, for a small "settle" bounce.
   final Set<Cell> settling;
   final double settleProgress;
+
+  /// Blocks holding a gem (Journey gem levels).
+  final Set<Cell> gems;
 }
 
 class BoardPainter extends CustomPainter {
@@ -103,6 +107,7 @@ class BoardPainter extends CustomPainter {
         if (ghostColor != null && visuals.previewClear.contains(pos)) {
           // Line about to clear: show it glowing in the dragged piece's colour.
           BlockArt.draw(canvas, cellRect(r, c), ghostColor, dpr);
+          if (visuals.gems.contains(pos)) paintGem(canvas, cellRect(r, c));
           continue;
         }
         if (value != null) {
@@ -117,6 +122,9 @@ class BoardPainter extends CustomPainter {
             theme.blocks[value],
             dpr,
           );
+          if (visuals.gems.contains(pos)) {
+            paintGem(canvas, cellRect(r, c, scale));
+          }
         } else if (ghostColor != null && visuals.ghost.contains(pos)) {
           BlockArt.draw(canvas, cellRect(r, c), ghostColor, dpr, opacity: 0.45);
         }
@@ -163,4 +171,36 @@ class BoardPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(BoardPainter old) => true;
+}
+
+/// A small faceted gem drawn on top of a block.
+void paintGem(Canvas canvas, Rect cell) {
+  final c = cell.center;
+  final h = cell.height * 0.24, w = cell.width * 0.2;
+  final path = Path()
+    ..moveTo(c.dx, c.dy - h)
+    ..lineTo(c.dx + w, c.dy)
+    ..lineTo(c.dx, c.dy + h)
+    ..lineTo(c.dx - w, c.dy)
+    ..close();
+  canvas.drawPath(
+    path.shift(Offset(0, cell.height * 0.03)),
+    Paint()..color = Colors.black.withValues(alpha: 0.18),
+  );
+  canvas.drawPath(
+    path,
+    Paint()
+      ..shader = const LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [Color(0xFFE6FBFF), Color(0xFF5BC8F5), Color(0xFF2E86DE)],
+      ).createShader(Rect.fromCenter(center: c, width: w * 2, height: h * 2)),
+  );
+  canvas.drawPath(
+    path,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = cell.width * 0.035
+      ..color = Colors.white,
+  );
 }

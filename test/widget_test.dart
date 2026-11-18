@@ -4,6 +4,7 @@ import 'package:calm_grid/ads/ad_service.dart';
 import 'package:calm_grid/app/app_scope.dart';
 import 'package:calm_grid/audio/sound_service.dart';
 import 'package:calm_grid/game/game_state.dart';
+import 'package:calm_grid/game/level.dart';
 import 'package:calm_grid/main.dart';
 import 'package:calm_grid/services/player_profile.dart';
 import 'package:calm_grid/services/reward_offers.dart';
@@ -58,10 +59,11 @@ void main() {
       await tester.pumpWidget(CalmGridApp(services: services));
       await tester.pump();
       expect(find.text('Calm Grid'), findsOneWidget);
-      expect(find.text('Play'), findsOneWidget);
+      expect(find.text('Classic'), findsOneWidget);
+      expect(find.textContaining('Journey'), findsOneWidget);
       expect(find.text("Today's goals"), findsOneWidget);
 
-      await tester.tap(find.text('Play'));
+      await tester.tap(find.text('Classic'));
       await tester.pumpAndSettle(const Duration(milliseconds: 100));
       expect(find.byTooltip('Pause'), findsOneWidget);
       // Exceptions such as RenderFlex overflows fail the test automatically.
@@ -180,7 +182,83 @@ void main() {
     await services.profile.saveGame(game.toJson());
     await tester.pumpWidget(CalmGridApp(services: services));
     await tester.pump();
-    expect(find.text('Continue'), findsOneWidget);
-    expect(find.text('New game'), findsOneWidget);
+    expect(find.text('Continue Classic'), findsOneWidget);
+    expect(find.text('New Classic game'), findsOneWidget);
+  });
+
+  testWidgets('Journey: win a level, earn stars and coins, go to the next', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    final services = makeServices(stored: {'tutorialDone': true});
+    final level = LevelSpec.generate(1);
+    // Play legal moves until the score goal is met (re-deal on a stuck board).
+    GameState? won;
+    for (var seed = 0; seed < 20 && won == null; seed++) {
+      final g = GameState(random: Random(seed), level: level);
+      final rnd = Random(seed);
+      while (!g.isGameOver && !g.levelComplete) {
+        final moves = [
+          for (var i = 0; i < GameState.traySize; i++)
+            for (var r = 0; r < 8; r++)
+              for (var c = 0; c < 8; c++)
+                if (g.canPlace(i, r, c)) (i, r, c),
+        ];
+        final (i, r, c) = moves[rnd.nextInt(moves.length)];
+        g.place(i, r, c);
+      }
+      if (g.levelComplete) won = g;
+    }
+    expect(won, isNotNull);
+
+    // Open the game screen on the won game: it shows the result.
+    await tester.pumpWidget(gameApp(services, won!));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pumpAndSettle();
+    expect(find.text('Level 1 complete!'), findsOneWidget);
+    expect(find.text('Next level'), findsOneWidget);
+    expect(services.profile.journeyLevel, 2);
+    expect(services.profile.journeyStars[1], inInclusiveRange(1, 3));
+    expect(services.profile.coins, greaterThan(0));
+    expect(
+      services.profile.hasSavedGame,
+      isFalse,
+      reason: 'Journey never overwrites Classic save',
+    );
+
+    await tester.tap(find.text('Next level'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Level 2'), findsOneWidget);
+  });
+
+  testWidgets('daily spin: free spin, then one extra spin for an ad', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(390, 844));
+    final services = makeServices();
+    await tester.pumpWidget(CalmGridApp(services: services));
+    await tester.pump();
+    await tester.tap(find.text('Daily spin'));
+    await tester.pump(const Duration(seconds: 1));
+
+    await tester.tap(find.text('Spin'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 5));
+    await tester.pump(const Duration(seconds: 1));
+    final afterFirst = services.profile.coins;
+    expect(afterFirst, greaterThan(0));
+    expect(services.profile.freeSpinAvailable, isFalse);
+    expect(find.textContaining('You won'), findsOneWidget);
+
+    await tester.tap(find.text('Spin again'));
+    // Simulated ad, then the 3.8 s wheel animation.
+    for (var i = 0; i < 14; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    await tester.pump(const Duration(seconds: 1));
+    expect(services.profile.coins, greaterThan(afterFirst));
+    expect(services.profile.extraSpinAvailable, isFalse);
+    expect(find.text('Come back tomorrow'), findsOneWidget);
   });
 }

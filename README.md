@@ -4,27 +4,33 @@ A calm, no-timer block puzzle made to help people unwind. Drag pieces onto an
 8×8 grid and fill rows or columns to clear them.
 
 **Features**
-- **Home screen**: Play or Continue, best score, level, coins, the daily
-  reward and today's goals.
+- **Two modes**:
+  - **Classic**: endless, chase your best score.
+  - **Journey**: levels with score or gem goals, pre-built boards, 1–3 stars
+    and a win-streak bonus.
+- **Home screen**: Classic and Journey buttons, best score, level, coins, the
+  daily reward, the daily spin and today's goals.
 - **Satisfying clears**: glossy blocks, a ghost preview while dragging, a
   clear wave, particles, praise text, a gentle screen shake, haptics, and
   pentatonic chimes that climb with each combo.
 - **Reasons to come back**:
   - a 7-day login streak,
+  - a daily spin wheel,
   - 3 daily goals,
   - levels and XP,
   - coins and 6 unlockable colour themes,
   - auto-saving after every move.
 - **Ads**:
-  - opt-in rewarded ads for revive, double coins, double daily reward and free
-    coins,
+  - opt-in rewarded ads for revive, double coins, double daily reward, an
+    extra spin and free coins,
   - rare, strictly capped interstitials,
   - an on-device ML model that learns how to present each offer.
 - **Every screen**: from 320×568 phones to tablets, in portrait and landscape,
   on Android 7.0+.
 
-The research behind every design decision, with sources, is in
-[docs/RESEARCH.md](docs/RESEARCH.md).
+Every design decision is based on famous casual games (Block Blast, Royal
+Match, Candy Crush, Woodoku, Tetris and Subway Surfers). The details, with
+sources, are in [docs/RESEARCH.md](docs/RESEARCH.md).
 
 Built with Flutter (Android + iOS).
 
@@ -34,13 +40,13 @@ Built with Flutter (Android + iOS).
 lib/
   main.dart                  app start-up, error reporting
   app/app_scope.dart         shared services (profile, ads, sound), screen scaling
-  game/                      rules: pieces, board, scoring, fair dealer (no UI, tested)
+  game/                      rules: pieces, board, scoring, fair dealer, Journey levels
   ml/offer_optimizer.dart    on-device contextual bandit (LinUCB)
   ads/ad_service.dart        AdMob rewarded + interstitial ads, consent form (UMP)
   ads/ad_policy.dart         when an interstitial may appear
   audio/sound_service.dart   sound effects and music
   services/                  player profile, progression (levels, streaks, missions)
-  ui/                        home, game, themes, dialogs, block art, effects
+  ui/                        home, game, Journey map, spin wheel, themes, dialogs, effects
 assets/sounds/               generated sound effects and music
 tool/generate_sounds.py      synthesises every sound from scratch (numpy)
 test/                        unit and widget tests (5 screen sizes)
@@ -55,7 +61,7 @@ entirely on the phone and needs no server or training step.
   score is to the player's best, time spent in the game, games played this
   session, ads already watched (fatigue), time since the last ad, the player's
   past accept rate, and how full the board is.
-* **Placements:** revive, double coins and double daily reward. Each one has
+* **Placements:** revive, double coins, double daily reward and extra spin. Each one has
   its own learned weights.
 * **Actions:** it chooses one of three ways to present the offer. For revive
   these are:
@@ -80,7 +86,7 @@ accept count.
 ### Adding another reward later
 
 1. Add a value to `OfferPlacement` in `lib/ml/offer_optimizer.dart`.
-   It already has `revive`, `doubleCoins` and `dailyBonus`.
+   It already has `revive`, `doubleCoins`, `dailyBonus` and `extraSpin`.
 2. Where the offer should appear, call `offers.optimizer.shouldOffer(...)`. If
    it returns true, call `optimizer.choose(...)`, show your button, then call
    `offers.recordAnswer(...)` and `offers.watchAd()`.

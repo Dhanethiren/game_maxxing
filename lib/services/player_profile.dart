@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -190,6 +191,58 @@ class PlayerProfile extends ChangeNotifier {
     await addCoins(coins);
     return coins;
   }
+
+  // ------------------------------------------------------------------ journey
+  /// Highest level the player may play (levels below it are completed).
+  int get journeyLevel => _int('journeyLevel', 1);
+  int get journeyWinStreak => _int('journeyStreak');
+
+  Map<int, int> get journeyStars {
+    final s = _str('journeyStars');
+    if (s == null) return {};
+    try {
+      return {
+        for (final e in (jsonDecode(s) as Map<String, dynamic>).entries)
+          int.parse(e.key): e.value as int,
+      };
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Records a completed level and pays coins. Returns the coins earned.
+  Future<int> completeLevel(int level, int stars) async {
+    final firstTime = level >= journeyLevel;
+    final streak = journeyWinStreak;
+    final coins = firstTime
+        ? Progression.levelCoins(level, stars, streak)
+        : Progression.replayCoins;
+    final all = journeyStars;
+    all[level] = max(all[level] ?? 0, stars);
+    await _set(
+      'journeyStars',
+      jsonEncode({for (final e in all.entries) '${e.key}': e.value}),
+    );
+    if (firstTime) await _set('journeyLevel', level + 1);
+    await _set('journeyStreak', streak + 1);
+    await addCoins(coins);
+    return coins;
+  }
+
+  Future<void> failLevel() => _set('journeyStreak', 0);
+
+  // ----------------------------------------------------------- daily spin
+  bool get freeSpinAvailable =>
+      _store.get('spinDay') != Progression.dayKey(DateTime.now());
+
+  bool get extraSpinAvailable =>
+      !freeSpinAvailable &&
+      _store.get('extraSpinDay') != Progression.dayKey(DateTime.now());
+
+  Future<void> useSpin({required bool extra}) => _set(
+    extra ? 'extraSpinDay' : 'spinDay',
+    Progression.dayKey(DateTime.now()),
+  );
 
   // -------------------------------------------------- free coins (ad), capped
   static const freeCoinAdsPerDay = 5;

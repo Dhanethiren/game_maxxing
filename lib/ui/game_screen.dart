@@ -7,6 +7,7 @@ import '../app/app_scope.dart';
 import '../audio/sound_service.dart';
 import '../game/board.dart';
 import '../game/game_state.dart';
+import '../game/level.dart';
 import '../game/piece.dart';
 import '../ml/offer_optimizer.dart';
 import '../services/progression.dart';
@@ -17,13 +18,16 @@ import 'effects.dart';
 import 'widgets.dart';
 
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key, this.game, this.resume = false});
+  const GameScreen({super.key, this.game, this.resume = false, this.level});
 
   /// Injected in tests.
   final GameState? game;
 
   /// Continue the saved game instead of starting a new one.
   final bool resume;
+
+  /// Play this Journey level instead of Classic.
+  final LevelSpec? level;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -74,6 +78,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   OfferDecision? _doubleDecision;
   bool _doubleAnswered = false;
 
+  // Journey.
+  bool get _journey => game.level != null;
+  bool _levelWon = false;
+  int _stars = 0;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -82,6 +91,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     app = AppScope.read(context);
     game =
         widget.game ??
+        (widget.level != null ? GameState(level: widget.level) : null) ??
         (widget.resume ? GameState.fromJson(app.profile.savedGame) : null) ??
         GameState();
     _lastEventId = game.lastEvent?.id ?? 0;
@@ -90,7 +100,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     for (final c in [_clearAnim, _settleAnim, _shakeAnim]) {
       c.addListener(() => setState(() {}));
     }
-    if (game.isGameOver) {
+    if (game.levelComplete) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _handleLevelComplete(),
+      );
+    } else if (game.isGameOver) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _handleGameOver());
     }
   }
@@ -112,7 +126,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _onPlaced(e);
     }
     setState(() {});
-    if (game.isGameOver && !_busy && !_showGameOver) _handleGameOver();
+    if (_busy || _showGameOver) return;
+    if (game.levelComplete) {
+      _handleLevelComplete();
+    } else if (game.isGameOver) {
+      _handleGameOver();
+    }
   }
 
   // ------------------------------------------------------------ placement fx
@@ -149,8 +168,23 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     app.profile.commitMissions(done);
     _announceMissions(done);
 
+    if (e.gemsCollected.isNotEmpty) {
+      app.sound.play(Sfx.coin);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _spawnGemEffects(e));
+    }
+
     if (!app.profile.tutorialDone) app.profile.setTutorialDone();
-    if (!game.isGameOver) app.profile.saveGame(game.toJson());
+    if (!_journey && !game.isGameOver) app.profile.saveGame(game.toJson());
+  }
+
+  void _spawnGemEffects(PlaceEvent e) {
+    final cellCenter = _cellCenterInStack();
+    if (cellCenter == null) return;
+    for (final gem in e.gemsCollected) {
+      final c = cellCenter(gem);
+      _effects.burst(c, const Color(0xFF5BC8F5), count: 8, speed: 260);
+      _effects.burst(c, Colors.white, count: 4, speed: 200);
+    }
   }
 
   void _spawnClearEffects(PlaceEvent e) {
@@ -382,13 +416,27 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _clearAnim.forward(from: 0);
     app.sound.play(Sfx.revive);
     app.mediumHaptic();
-    app.profile.saveGame(game.toJson());
+    if (!_journey) app.profile.saveGame(game.toJson());
     setState(() => _busy = false);
+    if (game.levelComplete) _handleLevelComplete();
   }
 
   Future<void> _finishGame() async {
     app.sound.play(Sfx.gameover);
     final p = app.profile;
+    if (_journey) {
+      await p.failLevel();
+      await _endOfGameBookkeeping(saveScore: false);
+      _coinsEarned = 0;
+      _doubleDecision = null;
+      if (!mounted) return;
+      setState(() {
+        _levelWon = false;
+        _showGameOver = true;
+        _busy = false;
+      });
+      return;
+    }
     await p.clearSavedGame();
     _newBest = await p.submitScore(game.score);
     _coinsEarned = Progression.coinsForGame(game.score, game.linesClearedTotal);
@@ -413,6 +461,68 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _showGameOver = true;
       _busy = false;
     });
+  }
+
+  /// Journey: the goal was reached. Celebrate, rate with stars, pay coins.
+  Future<void> _handleLevelComplete() async {
+    final level = game.level!;
+    setState(() => _busy = true);
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+    app.sound.play(Sfx.perfect);
+    app.heavyHaptic();
+    final board = _boardRectInStack();
+    if (board != null) {
+      for (var i = 0; i < 48; i++) {
+        _effects.burst(
+          board.center,
+          app.theme.blocks[i % app.theme.blocks.length],
+          count: 1,
+          speed: 460,
+        );
+      }
+    }
+    _stars = level.starsFor(game.movesMade);
+    _coinsEarned = await app.profile.completeLevel(level.number, _stars);
+    await _endOfGameBookkeeping(saveScore: false);
+    _doubleDecision = app.offers.decide(OfferPlacement.doubleCoins, game);
+    _doubleAnswered = false;
+    _coinsDoubled = false;
+    Future<void>.delayed(
+      const Duration(milliseconds: 900),
+      () => app.sound.play(Sfx.levelup),
+    );
+    if (!mounted) return;
+    setState(() {
+      _levelWon = true;
+      _showGameOver = true;
+      _busy = false;
+    });
+  }
+
+  /// XP, missions and counters shared by every way a game can end.
+  Future<void> _endOfGameBookkeeping({required bool saveScore}) async {
+    final p = app.profile;
+    _levelsReached = await p.addXp(game.score);
+    final missions = p.missions();
+    final done = missions.onGameEnd(game.score);
+    await p.commitMissions(done);
+    _announceMissions(done);
+    await p.onGameFinished();
+  }
+
+  Future<void> _nextLevel() async {
+    await _leaveGameOver();
+    if (!mounted) return;
+    final next = LevelSpec.generate(game.level!.number + 1);
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 300),
+        pageBuilder: (_, _, _) => GameScreen(level: next),
+        transitionsBuilder: (_, anim, _, child) =>
+            FadeTransition(opacity: anim, child: child),
+      ),
+    );
   }
 
   Future<void> _doubleCoins() async {
@@ -446,6 +556,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     setState(() {
       _showGameOver = false;
       _newBest = false;
+      _levelWon = false;
       _praise = null;
     });
     game.newGame();
@@ -464,12 +575,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       case PauseChoice.resume:
         break;
       case PauseChoice.restart:
-        await app.profile.clearSavedGame();
+        if (!_journey) await app.profile.clearSavedGame();
         app.profile.onGameStarted();
         setState(() => _praise = null);
         game.newGame();
       case PauseChoice.home:
-        if (!game.isGameOver) await app.profile.saveGame(game.toJson());
+        if (!_journey && !game.isGameOver) {
+          await app.profile.saveGame(game.toJson());
+        }
         if (mounted) Navigator.of(context).pop();
     }
   }
@@ -606,24 +719,27 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       ),
                     ),
                   ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.emoji_events_rounded,
-                        size: 15 * s,
-                        color: const Color(0xFFF2C14E),
-                      ),
-                      SizedBox(width: 4 * s),
-                      Text(
-                        '${max(app.profile.bestScore, game.score)}',
-                        style: TextStyle(
-                          fontSize: 14 * s,
-                          color: theme.textSoft,
+                  if (_journey)
+                    _goalChip()
+                  else
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.emoji_events_rounded,
+                          size: 15 * s,
+                          color: const Color(0xFFF2C14E),
                         ),
-                      ),
-                    ],
-                  ),
+                        SizedBox(width: 4 * s),
+                        Text(
+                          '${max(app.profile.bestScore, game.score)}',
+                          style: TextStyle(
+                            fontSize: 14 * s,
+                            color: theme.textSoft,
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -644,6 +760,61 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
+    );
+  }
+
+  /// Journey goal: "Level 7 · 120/300" or "Level 9 · 💎 2/6" with a bar.
+  Widget _goalChip() {
+    final level = game.level!;
+    final theme = app.theme;
+    final s = uiScale(context);
+    final gems = level.goal == LevelGoal.gems;
+    final done = gems ? game.gemsCollected : min(game.score, level.target);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Level ${level.number}  ·  ',
+              style: TextStyle(fontSize: 14 * s, color: theme.textSoft),
+            ),
+            if (gems) ...[
+              CustomPaint(
+                size: Size.square(16 * s),
+                painter: _GemIconPainter(),
+              ),
+              SizedBox(width: 4 * s),
+            ],
+            Text(
+              '$done / ${level.target}',
+              style: TextStyle(
+                fontSize: 14 * s,
+                fontWeight: FontWeight.w700,
+                color: theme.text,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 4 * s),
+        SizedBox(
+          width: 120 * s,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: game.goalProgress),
+              duration: const Duration(milliseconds: 400),
+              builder: (context, v, _) => LinearProgressIndicator(
+                value: v,
+                minHeight: 6 * s,
+                backgroundColor: theme.emptyCell,
+                color: gems ? const Color(0xFF5BC8F5) : theme.accent,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -681,6 +852,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                   settleProgress: _settleAnim.isAnimating
                       ? _settleAnim.value
                       : 1,
+                  gems: game.gems,
                 ),
               ),
             ),
@@ -823,49 +995,57 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      _newBest ? 'New best!' : 'Well played',
-                      style: TextStyle(
-                        fontSize: 28 * s,
-                        fontWeight: FontWeight.w800,
-                        color: theme.text,
+                    if (_journey)
+                      ..._levelResultHeader(s)
+                    else ...[
+                      Text(
+                        _newBest ? 'New best!' : 'Well played',
+                        style: TextStyle(
+                          fontSize: 28 * s,
+                          fontWeight: FontWeight.w800,
+                          color: theme.text,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 6 * s),
-                    Text(
-                      '${game.score}',
-                      style: TextStyle(
-                        fontSize: 54 * s,
-                        fontWeight: FontWeight.w900,
-                        color: theme.accent,
+                      SizedBox(height: 6 * s),
+                      Text(
+                        '${game.score}',
+                        style: TextStyle(
+                          fontSize: 54 * s,
+                          fontWeight: FontWeight.w900,
+                          color: theme.accent,
+                        ),
                       ),
-                    ),
-                    Text(
-                      'Best ${app.profile.bestScore}  ·  ${game.linesClearedTotal} lines'
-                      '${game.maxCombo >= 2 ? '  ·  ×${game.maxCombo} combo' : ''}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14 * s, color: theme.textSoft),
-                    ),
+                      Text(
+                        'Best ${app.profile.bestScore}  ·  ${game.linesClearedTotal} lines'
+                        '${game.maxCombo >= 2 ? '  ·  ×${game.maxCombo} combo' : ''}',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 14 * s,
+                          color: theme.textSoft,
+                        ),
+                      ),
+                    ],
                     SizedBox(height: 14 * s),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.circle,
-                          color: const Color(0xFFF2C14E),
-                          size: 20 * s,
-                        ),
-                        SizedBox(width: 6 * s),
-                        Text(
-                          '+${_coinsDoubled ? _coinsEarned * 2 : _coinsEarned}',
-                          style: TextStyle(
-                            fontSize: 22 * s,
-                            fontWeight: FontWeight.w800,
-                            color: theme.text,
+                    if (!_journey || _levelWon)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.circle,
+                            color: const Color(0xFFF2C14E),
+                            size: 20 * s,
                           ),
-                        ),
-                      ],
-                    ),
+                          SizedBox(width: 6 * s),
+                          Text(
+                            '+${_coinsDoubled ? _coinsEarned * 2 : _coinsEarned}',
+                            style: TextStyle(
+                              fontSize: 22 * s,
+                              fontWeight: FontWeight.w800,
+                              color: theme.text,
+                            ),
+                          ),
+                        ],
+                      ),
                     if (_levelsReached.isNotEmpty) ...[
                       SizedBox(height: 6 * s),
                       Text(
@@ -880,7 +1060,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       ),
                     ],
                     SizedBox(height: 18 * s),
-                    if (!_coinsDoubled &&
+                    if (_doubleDecision != null &&
+                        !_coinsDoubled &&
                         !_doubleAnswered &&
                         app.offers.ads.isReady) ...[
                       SoftButton(
@@ -891,16 +1072,24 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       ),
                       SizedBox(height: 10 * s),
                     ],
-                    SoftButton(
-                      label: 'Play again',
-                      icon: Icons.replay_rounded,
-                      large: true,
-                      onPressed: _playAgain,
-                    ),
+                    if (_journey && _levelWon)
+                      SoftButton(
+                        label: 'Next level',
+                        icon: Icons.arrow_forward_rounded,
+                        large: true,
+                        onPressed: _nextLevel,
+                      )
+                    else
+                      SoftButton(
+                        label: _journey ? 'Try again' : 'Play again',
+                        icon: Icons.replay_rounded,
+                        large: true,
+                        onPressed: _playAgain,
+                      ),
                     SizedBox(height: 10 * s),
                     SoftButton(
-                      label: 'Home',
-                      icon: Icons.home_rounded,
+                      label: _journey ? 'Map' : 'Home',
+                      icon: _journey ? Icons.map_rounded : Icons.home_rounded,
                       outlined: true,
                       onPressed: _goHome,
                     ),
@@ -913,4 +1102,73 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       ),
     );
   }
+
+  List<Widget> _levelResultHeader(double s) {
+    final theme = app.theme;
+    final level = game.level!;
+    return [
+      Text(
+        _levelWon ? 'Level ${level.number} complete!' : 'Out of space',
+        textAlign: TextAlign.center,
+        style: TextStyle(
+          fontSize: 26 * s,
+          fontWeight: FontWeight.w800,
+          color: theme.text,
+        ),
+      ),
+      SizedBox(height: 10 * s),
+      if (_levelWon)
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            for (var i = 0; i < 3; i++)
+              TweenAnimationBuilder<double>(
+                tween: Tween(begin: 0, end: 1),
+                duration: Duration(milliseconds: 400 + i * 250),
+                curve: Curves.elasticOut,
+                builder: (context, v, _) => Transform.scale(
+                  scale: i < _stars ? v : 1,
+                  child: Icon(
+                    Icons.star_rounded,
+                    size: (i == 1 ? 58 : 46) * s,
+                    color: i < _stars
+                        ? const Color(0xFFF2C14E)
+                        : theme.emptyCell,
+                  ),
+                ),
+              ),
+          ],
+        )
+      else
+        Text(
+          'No piece fits, but every try teaches the board.\n'
+          '${level.goalText}: ${(game.goalProgress * 100).round()}% done',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 15 * s,
+            color: theme.textSoft,
+            height: 1.35,
+          ),
+        ),
+      if (_levelWon && app.profile.journeyWinStreak > 1) ...[
+        SizedBox(height: 6 * s),
+        Text(
+          'Win streak ×${app.profile.journeyWinStreak}: bonus coins!',
+          style: TextStyle(
+            fontSize: 14 * s,
+            fontWeight: FontWeight.w700,
+            color: theme.accent,
+          ),
+        ),
+      ],
+    ];
+  }
+}
+
+class _GemIconPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) => paintGem(canvas, Offset.zero & size);
+
+  @override
+  bool shouldRepaint(_GemIconPainter old) => false;
 }

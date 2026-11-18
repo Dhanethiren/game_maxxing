@@ -16,6 +16,9 @@ enum OfferPlacement {
 
   /// "Double today's login reward".
   dailyBonus,
+
+  /// "Spin the daily wheel again".
+  extraSpin,
 }
 
 /// The different ways an offer can be presented. The model learns which one

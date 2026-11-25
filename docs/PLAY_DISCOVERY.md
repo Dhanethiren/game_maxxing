@@ -158,3 +158,38 @@ as directional):*
    0.47%.
 9. **Reply to reviews.** Google lists responding to user feedback among its
    discovery recommendations.
+
+## 7. Update: November 2026
+
+### What changed on Google's side
+
+| Change | What it means for us | Source |
+|---|---|---|
+| **Battery quality is enforced** (since 1 March 2026). Apps that often hold a partial wake lock for 2+ hours with the screen off (more than 5% of sessions over 28 days) **may be excluded from recommendations** and get a **warning on the listing**. Audio playback is exempt. | Calm Grid holds **no** wake locks: audio uses `stayAwake: false` (the audioplayers default, checked in the plugin source) and the music pauses when the app goes to the background. Keep it that way: never add a "keep screen on" or background job without checking this metric. | [Android Developers Blog, March 2026](https://android-developers.googleblog.com/2026/03/battery-technical-quality-enforcement.html), [Nov 2025](https://android-developers.googleblog.com/2025/11/raising-bar-on-battery-performance.html) |
+| **Ads SDK start-up no longer blocks the main thread** by default from Google Mobile Ads SDK 24.0.0 (fewer ANRs). | We ship SDK **25.5.0** (through google_mobile_ads 9.2.0), and the game only starts ads after the first frame is on screen. ANRs feed the "bad behaviour" threshold (0.47%). | [AdMob: optimize initialization](https://developers.google.com/admob/android/optimize-initialization), [SDK 24.0.0 announcement](https://developers.google.com/ads/blog/posts/2025/02/announcing-android-google-mobile-ads) |
+| **Mobile games appear on Google Play Games for PC by default** (you can opt out). A game gets the "Playable" badge only if it's stable, runs at 30+ fps and works with a mouse; untested games show only when searched by name. | Calm Grid works with a mouse (drag uses pointer events) and uses the tablet layout in a wide window. **Leave PC enabled** and test with the Google Play Games on PC Developer Emulator to earn the "Playable" badge: it's a free extra storefront. | [Android Developers Blog, 2025](https://android-developers.googleblog.com/2025/03/making-google-play-best-place-to-grow-pc-games.html), [Windows compatibility](https://support.google.com/googleplay/answer/15809091?hl=en), [Emulator](https://developer.android.com/games/playgames/emulator) |
+| **Languages**: Play Console suggests the languages most likely to increase installs, comparing your installs per language with similar apps. | Done: the game now speaks 11 languages (see below), so a listing in those languages leads to a game in the same language. | [Translate and localize](https://support.google.com/googleplay/android-developer/answer/9844778?hl=en) |
+| **App size**: Google's own analysis found about **1% fewer installs per extra 6 MB** for apps under 100 MB, and a bigger effect in emerging markets. | The sound pack is 4.9 MB of WAV. Compressing it would save about 3–4 MB (well under 1% of installs) but adds a delay before every sound and gaps in looping music on iOS, so we keep WAV. Revisit only if the app grows a lot. | [Google Play Developers (Medium)](https://medium.com/googleplaydev/shrinking-apks-growing-installs-5d3fcba23ce2) |
+
+### What we changed in the game this round
+
+| Change | Why |
+|---|---|
+| **11 languages**: English, Spanish, Portuguese (Brazil), French, German, Italian, Russian, Turkish, Indonesian, Japanese and Korean, with native plural rules. Every screen is tested in every language on a 320×568 phone. | Most casual-puzzle installs come from non-English markets. Players rate and keep apps in their own language, and engagement after install feeds ranking (section 1). |
+| **Translated store listings** for all 11 languages (`store/listings/`, checked against every length limit by `tool/listings.py`). | Search matches the listing text in the searcher's language, and a native listing converts better than machine translation. |
+| **A bigger sound for every extra line cleared at once** (2 → 6 lines), with growing praise text. | "Juice" on skilful moves makes sessions more satisfying, which supports engagement and ratings. |
+| **Fewer interruptions**: players who keep declining the revive offer see it less often at low-stakes moments. | Annoyed players uninstall; uninstalls and short sessions are the engagement signals Play weighs. |
+
+### Your next steps (in order of impact)
+
+1. **Upload the listings**: in Play Console → *Store presence → Main store
+   listing → Manage translations*, add the 10 languages and paste each
+   file from `store/listings/`. Upload English screenshots everywhere first;
+   localised screenshots can follow.
+2. **Closed test** (12 testers for 14 days, required for new personal
+   accounts), then production.
+3. **Play Games Services + Level Up** (section 6, step 7): achievements are
+   ready. This also unlocks Play Points quests and the You tab.
+4. **Leave Google Play Games on PC on**, and check the game in the PC
+   emulator.
+5. **Store listing experiments** on the icon and the first screenshot.

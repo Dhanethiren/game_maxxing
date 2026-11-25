@@ -33,7 +33,12 @@ Every design decision is based on famous casual games (Block Blast, Royal
 Match, Candy Crush, Woodoku, Tetris and Subway Surfers). The details, with
 sources, are in [docs/RESEARCH.md](docs/RESEARCH.md).
 
-Built with Flutter (Android + iOS).
+Built with Flutter (Android + iOS), in 11 languages: English, Spanish,
+Portuguese (Brazil), French, German, Italian, Russian, Turkish, Indonesian,
+Japanese and Korean. To change a text, edit `lib/l10n/app_en.arb` and the
+same key in the other `app_<language>.arb` files; `flutter pub get`
+regenerates the code. `flutter test` checks that every language has every
+text and that every screen fits on a small phone in every language.
 
 ## Project layout
 
@@ -47,6 +52,7 @@ lib/
   audio/sound_service.dart   sound effects and music
   services/                  player profile, progression (levels, streaks, missions), reward offers
   ui/                        home, game, Journey map, spin wheel, themes, dialogs, effects
+  l10n/                      translations: app_<language>.arb (11 languages) + helpers
 assets/sounds/               generated sound effects and music
 tool/sound/                  sound engine + sounds.config.js, renderer, checker, Sound Studio page
 tool/generate_icons.py       draws the app icon and store graphics (Pillow)
@@ -54,6 +60,9 @@ tool/preflight.py            release checklist: run before every Play upload
 store/                       Play Store icon, feature graphic and screenshots
 docs/PLAY_STORE.md           policy audit, launch steps, form answers, legal risk
 docs/PLAY_DISCOVERY.md       how Play ranks and recommends apps, and what we changed
+docs/APP_STORE.md            App Store launch: what's prepared, ranking, your steps
+store/listings/              store text in 11 languages (tool/listings.py checks limits)
+store/screenshots_ios/       App Store screenshots: iPhone 6.9" and iPad 13"
 docs/SOUNDS.md               every sound file and exactly when it plays
 test/                        unit and widget tests (5 screen sizes)
 ```

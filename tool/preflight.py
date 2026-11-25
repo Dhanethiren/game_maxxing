@@ -112,6 +112,36 @@ else:
     check('Release bundle built (' + BUILD_CMD + ')', False,
           'Build it, then re-run preflight to check signing and 16 KB pages.')
 
+# 8. Languages: the game, Android's per-app language list, iOS and the store
+#    listings must all name the same languages.
+arb_langs = {os.path.basename(f)[4:-4] for f in glob.glob(os.path.join(ROOT, 'lib/l10n/app_*.arb'))}
+android_langs = set(re.findall(r'<locale android:name="([\w-]+)"', read('android/app/src/main/res/xml/locales_config.xml')))
+plist = read('ios/Runner/Info.plist')
+ios_block = re.search(r'<key>CFBundleLocalizations</key>\s*<array>(.*?)</array>', plist, re.S)
+ios_langs = set(re.findall(r'<string>([\w-]+)</string>', ios_block.group(1))) if ios_block else set()
+check(f'{len(arb_langs)} languages, listed the same everywhere (l10n, Android, iOS)',
+      arb_langs == android_langs == ios_langs,
+      f'game {sorted(arb_langs)}, Android {sorted(android_langs)}, iOS {sorted(ios_langs)}')
+missing_listings = sorted(l for l in arb_langs if not os.path.exists(os.path.join(ROOT, f'store/listings/{l}.md')))
+check('Store listing text for every language (store/listings, tool/listings.py)',
+      not missing_listings, f'missing: {missing_listings}', blocking=False)
+
+# 9. App Store (iOS). Not needed for Google Play, so these never block.
+ios_app_ids = re.findall(r'ca-app-pub-\d+~\d+', plist)
+check('iOS: AdMob App ID is your own (ios/Runner/Info.plist)',
+      bool(ios_app_ids) and not set(ios_app_ids) & TEST_APP_IDS,
+      'Replace GADApplicationIdentifier with your iOS app ID.', blocking=False)
+skan = re.findall(r'<string>(\w+\.skadnetwork)</string>', plist)
+check(f'iOS: SKAdNetwork IDs ({len(skan)} listed)', len(skan) > 1,
+      'Add the full list from developers.google.com/admob/ios/3p-skadnetworks.', blocking=False)
+check('iOS: tracking permission text present', 'NSUserTrackingUsageDescription' in plist, blocking=False)
+store_id = re.search(r"appStoreId = '([^']*)'", read('lib/services/review_prompter.dart'))
+check('iOS: App Store ID set (ReviewService.appStoreId)', bool(store_id and store_id.group(1)),
+      'Copy the Apple ID from App Store Connect. Until then the Rate button is hidden on iOS.', blocking=False)
+check('iOS: screenshots for iPhone 6.9" and iPad 13" (store/screenshots_ios)',
+      len(glob.glob(os.path.join(ROOT, 'store/screenshots_ios/iphone69_*.png'))) >= 3
+      and len(glob.glob(os.path.join(ROOT, 'store/screenshots_ios/ipad13_*.png'))) >= 3, blocking=False)
+
 print()
 failed = 0
 for ok, blocking, name, detail in results:

@@ -24,7 +24,8 @@ A calm, no-timer block puzzle made to help people unwind. Drag pieces onto an
   - opt-in rewarded ads for revive, double coins, double daily reward, an
     extra spin and free coins,
   - rare, strictly capped interstitials,
-  - an on-device ML model that learns how to present each offer.
+  - every offer is optional, says what it gives, and adapts to the player on
+    the device.
 - **Every screen**: from 320×568 phones to tablets, in portrait and landscape,
   on Android 7.0+.
 
@@ -41,14 +42,13 @@ lib/
   main.dart                  app start-up, error reporting
   app/app_scope.dart         shared services (profile, ads, sound), screen scaling
   game/                      rules: pieces, board, scoring, fair dealer, Journey levels
-  ml/offer_optimizer.dart    on-device contextual bandit (LinUCB)
   ads/ad_service.dart        AdMob rewarded + interstitial ads, consent form (UMP)
   ads/ad_policy.dart         when an interstitial may appear
   audio/sound_service.dart   sound effects and music
-  services/                  player profile, progression (levels, streaks, missions)
+  services/                  player profile, progression (levels, streaks, missions), reward offers
   ui/                        home, game, Journey map, spin wheel, themes, dialogs, effects
 assets/sounds/               generated sound effects and music
-tool/sound/                  sound engine (synth.js), renderer and Sound Studio page
+tool/sound/                  sound engine + sounds.config.js, renderer, checker, Sound Studio page
 tool/generate_icons.py       draws the app icon and store graphics (Pillow)
 tool/preflight.py            release checklist: run before every Play upload
 store/                       Play Store icon, feature graphic and screenshots
@@ -58,46 +58,15 @@ docs/SOUNDS.md               every sound file and exactly when it plays
 test/                        unit and widget tests (5 screen sizes)
 ```
 
-## How the ad-offer ML works
+## Adding another reward offer
 
-`lib/ml/offer_optimizer.dart` is a **contextual bandit** (LinUCB). It runs
-entirely on the phone and needs no server or training step.
+1. Add a value to `OfferPlacement` in `lib/services/reward_offers.dart`.
+2. Where the offer appears, call `offers.decide(...)`, word your button with
+   the chosen `variant`, then call `offers.recordAnswer(...)` and
+   `offers.watchAd()`.
 
-* **Context:** at each game-over it looks at 9 signals. These are how close the
-  score is to the player's best, time spent in the game, games played this
-  session, ads already watched (fatigue), time since the last ad, the player's
-  past accept rate, and how full the board is.
-* **Placements:** revive, double coins, double daily reward and extra spin. Each one has
-  its own learned weights.
-* **Actions:** it chooses one of three ways to present the offer. For revive
-  these are:
-  * `quick`: "Continue?"
-  * `progress`: "You're 92% of the way to your best"
-  * `calm`: appears after a short pause with "Take a breath…"
-* **Learning:** each tap on *Watch ad* (1) or *No thanks* (0) updates that
-  variant's model. It mostly picks the variant predicted to be accepted, and
-  sometimes tries the others to keep learning. The learned weights are saved on
-  the device.
-* **Guardrails:**
-  * Revive is offered at most once per game.
-  * There's no countdown timer, and *No thanks* is always visible.
-  * Future optional offers use `shouldOffer()`, which caps them at 4 per session
-    with at least 90 s between them.
-
-  Annoying players costs more in uninstalls than one ad earns.
-
-**Debug view:** in a debug build, long-press **BEST** to see each variant's
-accept count.
-
-### Adding another reward later
-
-1. Add a value to `OfferPlacement` in `lib/ml/offer_optimizer.dart`.
-   It already has `revive`, `doubleCoins`, `dailyBonus` and `extraSpin`.
-2. Where the offer should appear, call `offers.optimizer.shouldOffer(...)`. If
-   it returns true, call `optimizer.choose(...)`, show your button, then call
-   `offers.recordAnswer(...)` and `offers.watchAd()`.
-
-Good candidates are reroll pieces, undo, and doubling the daily bonus.
+Keep every offer optional, say what it gives before the ad plays, and give
+it a visible "No thanks". Good candidates are reroll pieces and undo.
 
 ## Develop
 
@@ -120,7 +89,7 @@ sliders, then press *Save for Claude*. Or save your settings as JSON and
 render them yourself (needs Node.js):
 
 ```bash
-node tool/sound/render.js my-settings.json
+node tool/sound/render.js --settings my-settings.json
 ```
 
 This writes `assets/sounds/*.wav` plus `assets/sounds/mix.json` (in-game
@@ -162,18 +131,22 @@ python3 tool/preflight.py
    keyAlias=upload
    storeFile=/absolute/path/to/upload-keystore.jks
    ```
-4. **Build** the bundle you upload to Play Console:
+4. **Build** the bundle you upload to Play Console. Obfuscation renames the
+   game's code inside the app so it's hard to read if someone unpacks it:
    ```bash
-   flutter build appbundle --release
+   flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info
    ```
-   The output is `build/app/outputs/bundle/release/app-release.aab`.
-5. **App icon:** replace the default Flutter icon, for example with the
-   `flutter_launcher_icons` package.
+   The output is `build/app/outputs/bundle/release/app-release.aab`. Keep a
+   copy of `build/debug-info` for every release: `flutter symbolize` needs
+   it to turn crash reports back into readable stack traces.
+5. **App icon:** already drawn by `tool/generate_icons.py` (adaptive icon
+   plus the 512 px store icon).
 6. **Play Console forms:**
    * *Ads:* yes, contains ads.
    * *Target audience:* 13+, not designed for children.
    * *Data safety:* AdMob collects the device advertising ID and approximate
-     location for ads. The game's own ML data never leaves the device.
+     location for ads. The game's own data (progress, settings, offer
+     preferences) never leaves the device.
    * *Privacy policy:* host `PRIVACY.md` somewhere public, such as GitHub Pages,
      and paste the link.
 7. **Store listing:** you can say "relaxing" or "calming", but avoid medical

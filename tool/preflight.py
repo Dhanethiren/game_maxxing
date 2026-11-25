@@ -21,6 +21,7 @@ TEST_APP_IDS = {'ca-app-pub-3940256099942544~3347511713', 'ca-app-pub-3940256099
 TEST_PUBLISHER = 'ca-app-pub-3940256099942544'
 FLUTTER_DEFAULT_ICON_MD5 = '57838d52c318faff743130c3fcfae0c6'
 AAB = os.path.join(ROOT, 'build/app/outputs/bundle/release/app-release.aab')
+BUILD_CMD = 'flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info'
 
 results = []
 
@@ -85,7 +86,7 @@ if os.path.exists(AAB):
                              capture_output=True, text=True).stdout
         check('App bundle is not signed with the debug key',
               'CN=Android Debug' not in out and 'Owner' in out,
-              'Build after creating key.properties: flutter build appbundle --release')
+              'Build after creating key.properties: ' + BUILD_CMD)
     except FileNotFoundError:
         check('App bundle signature (keytool not found)', False, blocking=False)
     with zipfile.ZipFile(AAB) as z:
@@ -102,8 +103,13 @@ if os.path.exists(AAB):
                     bad.append(name)
                     break
         check('Native libraries support 16 KB pages', not bad, ', '.join(bad))
+        # Obfuscated builds don't contain the game's own class names.
+        app_so = [n for n in z.namelist() if n.endswith('/libapp.so')]
+        readable = any(b'RewardOffers' in z.read(n) for n in app_so)
+        check('Game code is obfuscated', bool(app_so) and not readable,
+              'Build with: ' + BUILD_CMD)
 else:
-    check('Release bundle built (flutter build appbundle --release)', False,
+    check('Release bundle built (' + BUILD_CMD + ')', False,
           'Build it, then re-run preflight to check signing and 16 KB pages.')
 
 print()

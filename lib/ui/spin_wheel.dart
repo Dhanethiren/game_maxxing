@@ -4,7 +4,6 @@ import 'package:material_ui/material_ui.dart';
 
 import '../app/app_scope.dart';
 import '../audio/sound_service.dart';
-import '../ml/offer_optimizer.dart';
 import '../services/progression.dart';
 import 'widgets.dart';
 
@@ -86,8 +85,6 @@ class _SpinDialogState extends State<_SpinDialog>
     final app = AppScope.read(context);
     if (_spinning) return;
     if (extra) {
-      final decision = app.offers.decide(OfferPlacement.extraSpin);
-      await app.offers.recordAnswer(decision, accepted: true);
       final earned = await app.offers.watchAd();
       if (!earned || !mounted) return;
     }

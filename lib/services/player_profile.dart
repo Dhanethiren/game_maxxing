@@ -76,8 +76,6 @@ class PlayerProfile extends ChangeNotifier {
   // ------------------------------------------------------------------ stats
   int get bestScore => _int('bestScore');
   int get gamesPlayed => _int('gamesPlayed');
-  int get lifetimeOffers => _int('lifetimeOffers');
-  int get lifetimeAccepts => _int('lifetimeAccepts');
 
   /// Returns true if [score] is a new best.
   Future<bool> submitScore(int score) async {
@@ -102,11 +100,22 @@ class PlayerProfile extends ChangeNotifier {
   DateTime? get lastAdAt => _time('lastAdAt');
   DateTime? get lastInterstitialAt => _time('lastInterstitialAt');
   int get gamesSinceInterstitial => _int('gamesSinceInterstitial');
-  String? get optimizerState => _str('offerOptimizer');
 
-  Future<void> onOfferShown({required bool accepted}) async {
-    await _set('lifetimeOffers', lifetimeOffers + 1);
-    if (accepted) await _set('lifetimeAccepts', lifetimeAccepts + 1);
+  /// Saved state of the offer pacing (see RewardOffers).
+  String? get pacing => _str('pc');
+
+  /// Saved quietly: it changes nothing on screen.
+  Future<void> savePacing(String state) => _store.set('pc', state);
+
+  /// Removes offer data written by older versions of the game.
+  Future<void> forgetLegacyOfferData() async {
+    for (final k in const [
+      'offerOptimizer',
+      'lifetimeOffers',
+      'lifetimeAccepts',
+    ]) {
+      if (_store.get(k) != null) await _store.remove(k);
+    }
   }
 
   Future<void> onAdWatched() async {
@@ -119,8 +128,6 @@ class PlayerProfile extends ChangeNotifier {
     await _set('lastInterstitialAt', DateTime.now().millisecondsSinceEpoch);
     await _set('gamesSinceInterstitial', 0);
   }
-
-  Future<void> saveOptimizerState(String json) => _set('offerOptimizer', json);
 
   // ------------------------------------------------------- coins and levels
   int get coins => _int('coins');

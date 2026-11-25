@@ -9,7 +9,7 @@ import '../game/board.dart';
 import '../game/game_state.dart';
 import '../game/level.dart';
 import '../game/piece.dart';
-import '../ml/offer_optimizer.dart';
+import '../services/reward_offers.dart';
 import '../services/achievements.dart';
 import '../services/progression.dart';
 import 'block_painter.dart';
@@ -455,7 +455,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     await Future<void>.delayed(const Duration(milliseconds: 1600));
     if (!mounted) return;
 
-    if (game.canRevive && app.offers.ads.isReady) {
+    if (game.canRevive &&
+        app.offers.ads.isReady &&
+        app.offers.shouldOfferRevive(game)) {
       final decision = app.offers.decide(OfferPlacement.revive, game);
       if (decision.variant == OfferVariant.calm) {
         await Future<void>.delayed(const Duration(milliseconds: 900));

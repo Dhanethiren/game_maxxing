@@ -2,7 +2,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../app/app_scope.dart';
 import '../audio/sound_service.dart';
-import '../ml/offer_optimizer.dart';
+import '../services/reward_offers.dart';
 import '../services/achievements.dart';
 import '../services/progression.dart';
 import 'widgets.dart';

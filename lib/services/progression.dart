@@ -77,12 +77,20 @@ class Progression {
 }
 
 enum MissionType {
-  clearLines,
-  scoreInGame,
-  comboInGame,
-  playGames,
-  placePieces,
-  perfectClear,
+  clearLines('clearLines'),
+  scoreInGame('scoreInGame'),
+  comboInGame('comboInGame'),
+  playGames('playGames'),
+  placePieces('placePieces'),
+  perfectClear('perfectClear');
+
+  const MissionType(this.key);
+
+  /// Saved with the mission. Spelled out so obfuscated builds read old saves.
+  final String key;
+
+  static MissionType byKey(String key) =>
+      values.firstWhere((t) => t.key == key);
 }
 
 /// A small daily goal, e.g. "Clear 20 lines".
@@ -113,7 +121,7 @@ class Mission {
   double get fraction => (progress / target).clamp(0, 1).toDouble();
 
   Map<String, dynamic> toJson() => {
-    't': type.name,
+    't': type.key,
     'g': target,
     'r': reward,
     'p': progress,
@@ -121,7 +129,7 @@ class Mission {
   };
 
   static Mission fromJson(Map<String, dynamic> j) => Mission(
-    MissionType.values.byName(j['t'] as String),
+    MissionType.byKey(j['t'] as String),
     j['g'] as int,
     j['r'] as int,
     j['p'] as int,

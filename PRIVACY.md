@@ -9,8 +9,8 @@ OR STUDIO]**, handles information.
 
 * Your best score, level, coins, unlocked themes, daily streak, daily goals,
   settings and your current unfinished game.
-* How often you have accepted or declined "watch an ad" offers, and the
-  settings of a small model that learns how to present those offers to you.
+* Which optional "watch an ad" offers you accepted or declined, so the game
+  can adjust how and how often it presents them to you.
 
 This information stays **only on your device**. We don't send it to our own
 servers, because we don't run any. Uninstalling the app deletes it.

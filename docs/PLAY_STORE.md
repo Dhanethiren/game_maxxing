@@ -87,9 +87,9 @@ blocking items automatically.
    your Play listing.
 4. **Privacy policy**: fill in `PRIVACY.md` and publish it on the same site,
    for example `https://<your-domain>/privacy`.
-5. **Upload key**: follow the README, then build:
+5. **Upload key**: follow the README, then build (obfuscated):
    ```bash
-   flutter build appbundle --release
+   flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info
    ```
    Then run:
    ```bash
@@ -143,7 +143,7 @@ blocking items automatically.
 
     Purposes: **Advertising or marketing**, **Analytics**, and **Fraud
     prevention, security and compliance**.
-  - The game's own data (scores, coins, settings, the offer model) never
+  - The game's own data (scores, coins, settings, offer preferences) never
     leaves the phone. Data processed only on the device doesn't count as
     "collected".
 - **Health apps**: No health features. **News**, **Government**,

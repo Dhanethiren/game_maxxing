@@ -179,16 +179,17 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _clearing = e.clearedColors;
       _clearOrigin = e.origin;
       _clearAnim.forward(from: 0);
-      app.sound.clear(lines: e.lines, combo: e.combo);
-      if (e.perfect) {
-        app.sound.play(Sfx.perfect);
+      app.sound.clear(lines: e.lines, combo: e.combo, perfect: e.perfect);
+      if (e.perfect) app.sound.play(Sfx.perfect);
+      // Feel grows with the moment: a firmer tap from 3 lines at once.
+      if (e.perfect || e.lines >= 3) {
         app.heavyHaptic();
       } else {
         app.mediumHaptic();
       }
       _praise = e;
       if (e.lines >= 2 || e.perfect) {
-        _shakeAmp = e.perfect ? 7 : min(3.0 + (e.lines - 2) * 1.5, 6);
+        _shakeAmp = e.perfect ? 7 : min(3.0 + (e.lines - 2) * 1.5, 7);
         _shakeAnim.forward(from: 0);
       }
       WidgetsBinding.instance.addPostFrameCallback(
@@ -1011,7 +1012,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               text: praise.praise!,
               sub: praise.combo >= 2 ? 'Combo ×${praise.combo}' : null,
               color: app.theme.accent,
-              fontSize: (praise.perfect ? 40 : 34) * s,
+              // Bigger words for bigger clears: 4 lines and up grow to 40.
+              fontSize:
+                  (praise.perfect
+                          ? 40
+                          : 34 + 2 * (praise.lines - 3).clamp(0, 3))
+                      .toDouble() *
+                  s,
             ),
           if (_noMoves && !_showGameOver)
             _NoMovesBanner(color: app.theme.text, fontSize: 32 * s),

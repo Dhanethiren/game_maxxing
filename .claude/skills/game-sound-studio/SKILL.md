@@ -35,7 +35,7 @@ CC0 libraries. You can still check the files with `analyze.js` and follow
 | `scripts/build_studio.js` | Config → one self-contained studio HTML page |
 | `scripts/analyze.js` | Checks any WAV files, including ones not made here |
 | `assets/studio.template.html` | The studio page template. It is already designed: light/dark, phone width, accessible |
-| `assets/examples/calm-puzzle.config.js` | A calm block puzzle: wood tock, pentatonic bell combo ladder, whoosh, pad music. A full worked example |
+| `assets/examples/calm-puzzle.config.js` | A calm block puzzle: wood tock, pentatonic bell combo ladder, a multi-line family that grows with every extra line, whoosh, pad music. A full worked example |
 | `assets/examples/arcade.config.js` | Retro arcade: jump, pickup ladder, laser, hit, explosion, a tempo-based chiptune loop |
 | `assets/examples/app-ui.config.js` | A non-game app: tap, toggle on/off, success, error, notification, send, delete |
 | `references/sound-design.md` | How to choose a palette and make a set feel good: budgets, pitch ladders, loudness, fatigue, mobile speakers. **Read before step 2** |
@@ -110,7 +110,7 @@ return {
     render(p, g, x) { /* return a mono Float32Array */ },
   }],
   scenarios: [{ name: 'Collect a row', desc: 'Five quick pickups',
-                events: [[0, 'pickup', 0], [170, 'pickup', 1]] }],   // [ms, key, fileIndex]
+                events: [[0, 'pickup', 0], [170, 'pickup', 1]] }],   // [ms, key, fileIndex, gain?]
 };
 ```
 
@@ -144,7 +144,9 @@ Rules that keep the set working:
   stays fast.
 - **Add scenarios.** Write a few with real timings: what one move, one
   combo or one loss actually sounds like. People judge sounds in context,
-  not alone.
+  not alone. An optional 4th value in an event is an extra volume
+  multiplier, for when the code plays a sound quieter in that moment (for
+  example, a combo chime ducked under a big multi-line sound).
 
 `references/recipes.md` covers the helper functions and a recipe for each
 common sound. The three example configs are working references, so copy

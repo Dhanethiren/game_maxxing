@@ -47,14 +47,19 @@
       "volume": 0.32,
       "gameVolume": 0.7
     },
-    "sparkle": {
-      "notes": 7,
-      "gap": 32,
-      "ring": 0.7,
-      "brightness": 1.4,
-      "reverb": 0.35,
-      "volume": 0.45,
-      "gameVolume": 0.8
+    "lines": {
+      "accentNote": 10,
+      "strikeGap": 85,
+      "runSpeed": 30,
+      "brightness": 1.25,
+      "impact": 0.5,
+      "chordRing": 1.8,
+      "shimmer": 0.6,
+      "swell": 0.5,
+      "growth": 1.5,
+      "reverb": 0.32,
+      "volume": 0.82,
+      "gameVolume": 0.85
     },
     "perfect": {
       "runNotes": 10,

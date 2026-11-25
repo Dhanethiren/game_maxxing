@@ -49,7 +49,9 @@ class PlaceEvent {
       1 => 'Nice',
       2 => 'Great!',
       3 => 'Excellent!',
-      _ => 'Amazing!',
+      4 => 'Amazing!',
+      5 => 'Incredible!',
+      _ => 'Legendary!',
     };
   }
 }

@@ -10,6 +10,7 @@ The longer recipes live in the example configs:
 | Recipe | Where to find it |
 |---|---|
 | Wooden or clay "tock" | `calm-puzzle.config.js` → `place` |
+| Escalation family built from layers (2 → 6 lines at once) | `calm-puzzle.config.js` → `lines` |
 | Calm pad music loop with sparse bells | `calm-puzzle.config.js` → `music` |
 | Tempo-based chiptune loop (bass, arpeggio, hi-hat) | `arcade.config.js` → `music` |
 | Explosion (a closing low-pass on noise) | `arcade.config.js` → `explosion` |

@@ -169,7 +169,9 @@ void main() {
       expect(ev(1).praise, 'Nice');
       expect(ev(2).praise, 'Great!');
       expect(ev(3).praise, 'Excellent!');
-      expect(ev(5).praise, 'Amazing!');
+      expect(ev(4).praise, 'Amazing!');
+      expect(ev(5).praise, 'Incredible!');
+      expect(ev(6).praise, 'Legendary!');
     });
 
     test('save and restore round-trips the whole game', () {

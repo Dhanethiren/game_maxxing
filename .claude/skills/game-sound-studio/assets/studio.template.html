@@ -237,12 +237,12 @@ select { font: 0.88rem var(--font-body); color: var(--ink); background: var(--pa
     const gv = settings.sounds[key].gameVolume;
     return $('gameMix').checked && typeof gv === 'number' ? gv : 1;
   }
-  function play(key, i, at) {
+  function play(key, i, at, gain) {
     const a = audio();
     const src = a.createBufferSource();
     src.buffer = bufferFor(key, i || 0);
     const g = a.createGain();
-    g.gain.value = gainFor(key);
+    g.gain.value = gainFor(key) * (typeof gain === 'number' ? gain : 1);
     src.connect(g).connect(master);
     src.start(at || a.currentTime);
     return src;
@@ -277,7 +277,9 @@ select { font: 0.88rem var(--font-body); color: var(--ink); background: var(--pa
     if (BED && $('musicBed').checked && !loopSrc) startLoop(BED);
     events.forEach(function (e) { bufferFor(e[1], e[2] || 0); });
     const t0 = a.currentTime + 0.08;
-    events.forEach(function (e) { play(e[1], e[2] || 0, t0 + e[0] / 1000); });
+    // [ms, key, fileIndex, gain]: gain is an optional extra multiplier, for
+    // sounds the project plays quieter in some moments.
+    events.forEach(function (e) { play(e[1], e[2] || 0, t0 + e[0] / 1000, e[3]); });
   }
 
   // ------------------------------------------------------------ formatting

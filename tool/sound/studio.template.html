@@ -1,11 +1,12 @@
-<title>Calm Grid Sound Studio</title>
+<title>{{TITLE}} Sound Studio</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-/* Layout: a mixing desk for one game. Sticky toolbar, a "whole set" strip,
-   scenario pads, then one tile per sound grouped like the game's moments. */
+/* Layout: a mixing desk for one project. Sticky toolbar, scenario pads, a
+   "whole set" strip, then one tile per sound grouped like the project's
+   moments. Built by build_studio.js from synth_core.js + sounds.config.js. */
 :root {
   --bg: #f1eefa;
   --panel: #ffffff;
@@ -101,14 +102,16 @@ button[aria-pressed="true"] { background: var(--mint); color: var(--accent-ink);
 .foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
 textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px; resize: vertical; }
 .json { font: 0.75rem var(--font-mono); min-height: 140px; }
+select { font: 0.88rem var(--font-body); color: var(--ink); background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; grid-column: 1 / -1; width: 100%; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/*THEME*/
 </style>
 
 <div class="wrap">
   <div class="bar">
     <div class="title">
-      <h1>Calm Grid Sound Studio</h1>
-      <p>Listen to every sound in the game, move the sliders, and hear the change straight away.</p>
+      <h1>{{TITLE}} Sound Studio</h1>
+      <p>{{SUBTITLE}}</p>
     </div>
     <div class="actions">
       <button id="save" class="primary" type="button">Save for Claude</button>
@@ -121,20 +124,20 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
   <section class="panel" aria-labelledby="ctx-h">
     <header>
       <h2 id="ctx-h">Try it in context</h2>
-      <p class="hint">Hear the sounds in the order the game plays them.</p>
+      <p class="hint" id="ctx-hint">Hear the sounds in the order they really play.</p>
     </header>
     <div class="switches">
-      <label><input id="musicBed" type="checkbox"> Music underneath</label>
+      <label id="musicBedLabel"><input id="musicBed" type="checkbox"> Music underneath</label>
       <label><input id="gameMix" type="checkbox" checked> Use in-game volumes</label>
       <label><input id="autoplay" type="checkbox" checked> Play after each slider change</label>
     </div>
     <div class="pads" id="pads"></div>
   </section>
 
-  <section class="panel" aria-labelledby="set-h">
+  <section class="panel" aria-labelledby="set-h" id="setPanel">
     <header>
       <h2 id="set-h">Whole set</h2>
-      <p class="hint">These change every melodic sound and the music together.</p>
+      <p class="hint">These change many sounds together, so the set stays consistent.</p>
     </header>
     <div class="knobs" id="globalKnobs"></div>
   </section>
@@ -143,9 +146,9 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
 
   <section class="panel" aria-labelledby="send-h">
     <header>
-      <h2 id="send-h">Send your sounds to the game</h2>
+      <h2 id="send-h">Send your sounds to the project</h2>
     </header>
-    <p class="hint">Press <b>Save for Claude</b>, then tell Claude "apply my sound settings". Your exact settings rebuild every sound file, so the game plays exactly what you hear here. Add a note if something should change that the sliders can't do.</p>
+    <p class="hint">Press <b>Save for Claude</b>, then tell Claude "apply my sound settings". Your exact settings rebuild every sound file, so the project plays exactly what you hear here. Add a note if something should change that the sliders can't do.</p>
     <textarea id="note" placeholder="Optional note, e.g. the coin sound should feel more playful"></textarea>
     <div id="fallback" hidden class="knobs">
       <p class="hint">Saving isn't available in this view. Copy these settings and paste them to Claude instead.</p>
@@ -155,22 +158,35 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
   </section>
 </div>
 
+
 <script>
-/*SYNTH*/
+/*CORE*/
+</script>
+<script>
+/*CONFIG*/
 </script>
 <script>
 (function () {
   'use strict';
-  const S = window.CalmSynth;
-  const DRAFT_KEY = 'calmgrid-sound-studio-draft-v1';
-  const DEFAULTS = S.defaults();
-  let settings = S.normalize(readDraft());
+  const S = window.SoundCore.createEngine(window.SoundConfig(window.SoundCore));
+  const SLUG = /*SLUG*/'game';
+  const BUILT_AT = /*BUILT_AT*/0;
+  const CURRENT = /*CURRENT*/null;
+  const DRAFT_KEY = SLUG + '-sound-studio-draft-v1';
+  // What the project ships right now: the reset target and the "changed" baseline.
+  const BASE = S.normalize(CURRENT);
+  const LOOPS = S.CATALOGUE.filter(function (s) { return s.loop; });
+  const BED = (S.config.musicBed && S.CATALOGUE.some(function (s) { return s.key === S.config.musicBed; })) ? S.config.musicBed : (LOOPS[0] && LOOPS[0].key);
+  const PREVIEW = S.config.preview || [(S.CATALOGUE.find(function (s) { return !s.loop; }) || S.CATALOGUE[0]).key, 0];
+  const IN_CLAUDE = !!(window.claude && typeof window.claude.use === 'function');
+  let settings = S.normalize(readDraft() || CURRENT);
   const stamp = { __global: 0 };
   const cache = new Map();
   const ui = {};
   let ctx = null;
   let master = null;
-  let musicSrc = null;
+  let loopSrc = null;
+  let loopKey = null;
   let db = null;
   let downloads = null;
   const $ = function (id) { return document.getElementById(id); };
@@ -182,6 +198,7 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
   function writeDraft() {
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(settings)); } catch (e) { /* not available */ }
   }
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
 
   // -------------------------------------------------------------- audio
   function audio() {
@@ -216,71 +233,74 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
     }
     return c.buffer;
   }
-  function gainFor(key) { return $('gameMix').checked ? settings.sounds[key].gameVolume : 1; }
-  function play(key, i, at) {
+  function gainFor(key) {
+    const gv = settings.sounds[key].gameVolume;
+    return $('gameMix').checked && typeof gv === 'number' ? gv : 1;
+  }
+  function play(key, i, at, gain) {
     const a = audio();
     const src = a.createBufferSource();
     src.buffer = bufferFor(key, i || 0);
     const g = a.createGain();
-    g.gain.value = gainFor(key);
+    g.gain.value = gainFor(key) * (typeof gain === 'number' ? gain : 1);
     src.connect(g).connect(master);
     src.start(at || a.currentTime);
     return src;
   }
-  function stopMusic() {
-    if (musicSrc) { try { musicSrc.stop(); } catch (e) { /* already stopped */ } musicSrc = null; }
-    if (ui.music && ui.music.playBtn) { ui.music.playBtn.setAttribute('aria-pressed', 'false'); ui.music.playBtn.textContent = '▶ Play loop'; }
+  function setLoopButton(key, on) {
+    const c = ui[key];
+    if (c && c.playBtn) { c.playBtn.setAttribute('aria-pressed', String(on)); c.playBtn.textContent = on ? '■ Stop loop' : '▶ Play loop'; }
   }
-  function startMusic() {
-    stopMusic();
+  function stopLoop() {
+    if (loopSrc) { try { loopSrc.stop(); } catch (e) { /* already stopped */ } loopSrc = null; }
+    if (loopKey) setLoopButton(loopKey, false);
+    loopKey = null;
+  }
+  function startLoop(key) {
+    stopLoop();
     const a = audio();
     const src = a.createBufferSource();
-    src.buffer = bufferFor('music', 0);
+    src.buffer = bufferFor(key, ui[key] ? ui[key].index : 0);
     src.loop = true;
     const g = a.createGain();
-    g.gain.value = gainFor('music');
+    g.gain.value = gainFor(key);
     src.connect(g).connect(master);
     src.start();
-    musicSrc = src;
-    if (ui.music && ui.music.playBtn) { ui.music.playBtn.setAttribute('aria-pressed', 'true'); ui.music.playBtn.textContent = '■ Stop loop'; }
+    loopSrc = src;
+    loopKey = key;
+    setLoopButton(key, true);
   }
 
   // --------------------------------------------------------- scenarios
-  const SCENARIOS = [
-    ['Place three blocks', 'Pick up, drop, three times', [[0, 'pickup'], [180, 'place', 0], [620, 'pickup'], [800, 'place', 1], [1240, 'pickup'], [1420, 'place', 2]]],
-    ['Combo climb ×1 → ×8', 'A clear on every move', (function () {
-      const ev = [];
-      for (let k = 0; k < 8; k++) { const t = k * 1100; ev.push([t, 'place', k % 3], [t + 60, 'clear', k], [t + 60, 'sweep']); }
-      return ev;
-    })()],
-    ['Two lines at once', 'Chime, whoosh and sparkle', [[0, 'place', 0], [60, 'clear', 0], [60, 'sweep'], [60, 'sparkle']]],
-    ['Perfect clear', 'The whole board empties', [[0, 'place', 1], [60, 'clear', 2], [60, 'sweep'], [60, 'sparkle'], [60, 'perfect']]],
-    ['Run out of moves', "Doesn't fit, then no more moves", [[0, 'pickup'], [420, 'invalid'], [1150, 'gameover']]],
-    ['Revive and carry on', 'After the revive ad', [[0, 'revive'], [1700, 'pickup'], [1880, 'place', 0], [2600, 'place', 1], [2660, 'clear', 0], [2660, 'sweep']]],
-    ['Rewards', 'Goal done, then a level up', [[0, 'coin'], [750, 'coin'], [1700, 'levelup']]],
-    ['Menu taps', 'Moving around the menus', [[0, 'tap'], [260, 'tap'], [520, 'tap'], [780, 'tap']]],
-  ];
   function runScenario(events) {
     const a = audio();
-    if ($('musicBed').checked && !musicSrc) startMusic();
+    if (BED && $('musicBed').checked && !loopSrc) startLoop(BED);
     events.forEach(function (e) { bufferFor(e[1], e[2] || 0); });
     const t0 = a.currentTime + 0.08;
-    events.forEach(function (e) { play(e[1], e[2] || 0, t0 + e[0] / 1000); });
+    // [ms, key, fileIndex, gain]: gain is an optional extra multiplier, for
+    // sounds the project plays quieter in some moments.
+    events.forEach(function (e) { play(e[1], e[2] || 0, t0 + e[0] / 1000, e[3]); });
   }
 
   // ------------------------------------------------------------ formatting
+  function decimals(step) {
+    const s = String(step);
+    return s.indexOf('.') < 0 ? 0 : Math.min(3, s.length - s.indexOf('.') - 1);
+  }
   function fmt(spec, v) {
     const unit = spec[4];
+    const d = decimals(spec[3]);
     if (unit === 'note') return S.noteName(Math.round(v));
-    if (unit === 'choice') return S.PROGRESSIONS[Math.round(v)].name;
-    if (unit === 'Hz') return Math.round(v) + ' Hz';
+    if (unit === 'choice') return (spec[6] && spec[6][Math.round(v) - spec[1]]) || String(Math.round(v));
+    if (unit === 'Hz') return v >= 1000 && d === 0 ? (v / 1000).toFixed(2) + ' kHz' : v.toFixed(d) + ' Hz';
     if (unit === 'ms') return Math.round(v) + ' ms';
-    if (unit === 's') return v.toFixed(2) + ' s';
-    if (unit === '%') return v.toFixed(1) + '%';
+    if (unit === 's') return v.toFixed(Math.max(2, d)) + ' s';
+    if (unit === '%') return v.toFixed(Math.max(1, d)) + '%';
     if (unit === '×') return v.toFixed(2) + '×';
+    if (unit === 'dB') return (v > 0 ? '+' : '') + v.toFixed(d) + ' dB';
     if (unit === 'semitones') return (v > 0 ? '+' : '') + Math.round(v) + ' semitones';
-    if (unit === 'notes' || unit === 'steps') return String(Math.round(v));
-    return v.toFixed(2);
+    if (unit === 'count' || unit === 'notes' || unit === 'steps') return String(Math.round(v));
+    return v.toFixed(d) + (unit ? ' ' + unit : '');
   }
 
   // -------------------------------------------------------------- waves
@@ -309,7 +329,7 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
     drawWave(c.canvas, r.samples);
     c.dur.textContent = (r.samples.length / r.sampleRate).toFixed(2) + ' s · ' + c.files[c.index] + '.wav';
     for (const k in c.knobs) {
-      c.knobs[k].row.classList.toggle('changed', settings.sounds[key][k] !== DEFAULTS.sounds[key][k]);
+      c.knobs[k].row.classList.toggle('changed', settings.sounds[key][k] !== BASE.sounds[key][k]);
     }
   }
   const pending = {};
@@ -317,9 +337,10 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
     clearTimeout(pending[key]);
     pending[key] = setTimeout(function () {
       refreshCard(key);
-      if (key === 'music' && musicSrc) startMusic();
+      const isLoop = ui[key] && ui[key].loop;
+      if (isLoop && loopKey === key) startLoop(key);
       if (playAfter && $('autoplay').checked) {
-        if (key === 'music') { if (!musicSrc) startMusic(); } else play(key, ui[key].index);
+        if (isLoop) { if (loopKey !== key) startLoop(key); } else play(key, ui[key].index);
       }
     }, playAfter ? 0 : 140);
   }
@@ -333,39 +354,59 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
     label.textContent = spec[5];
     const out = document.createElement('output');
     out.htmlFor = id;
-    out.textContent = fmt(spec, value);
-    const input = document.createElement('input');
-    input.type = 'range'; input.id = id;
-    input.min = spec[1]; input.max = spec[2]; input.step = spec[3]; input.value = value;
-    input.addEventListener('input', function () { const v = Number(input.value); out.textContent = fmt(spec, v); onInput(v); });
-    input.addEventListener('change', function () { onChange(Number(input.value)); });
+    out.textContent = spec[4] === 'choice' ? '' : fmt(spec, value);
+    let input;
+    if (spec[4] === 'choice') {
+      input = document.createElement('select');
+      input.id = id;
+      for (let v = spec[1]; v <= spec[2]; v++) {
+        const o = document.createElement('option');
+        o.value = String(v);
+        o.textContent = fmt(spec, v);
+        input.append(o);
+      }
+      input.value = String(Math.round(value));
+      input.addEventListener('change', function () { const v = Number(input.value); onInput(v); onChange(v); });
+    } else {
+      input = document.createElement('input');
+      input.type = 'range'; input.id = id;
+      input.min = spec[1]; input.max = spec[2]; input.step = spec[3]; input.value = value;
+      input.addEventListener('input', function () { const v = Number(input.value); out.textContent = fmt(spec, v); onInput(v); });
+      input.addEventListener('change', function () { onChange(Number(input.value)); });
+    }
     row.append(label, out, input);
     container.append(row);
     return { row: row, input: input, out: out, spec: spec };
+  }
+  function setKnob(k, v) {
+    k.input.value = k.spec[4] === 'choice' ? String(Math.round(v)) : v;
+    if (k.spec[4] !== 'choice') k.out.textContent = fmt(k.spec, v);
   }
 
   function buildGlobal() {
     const box = $('globalKnobs');
     box.innerHTML = '';
     ui.__global = {};
-    for (const k in S.GLOBAL_PARAMS) {
+    const keys = Object.keys(S.GLOBAL_PARAMS);
+    $('setPanel').hidden = keys.length === 0;
+    keys.forEach(function (k) {
       const spec = S.GLOBAL_PARAMS[k];
       ui.__global[k] = knob(box, 'g-' + k, spec, settings.global[k],
         function (v) { settings.global[k] = v; writeDraft(); },
         function () {
           stamp.__global++;
           S.CATALOGUE.forEach(function (s) { refreshCard(s.key); });
-          if (musicSrc) startMusic();
-          if ($('autoplay').checked) play('clear', ui.clear.index);
+          if (loopSrc) startLoop(loopKey);
+          if ($('autoplay').checked && PREVIEW && ui[PREVIEW[0]]) play(PREVIEW[0], PREVIEW[1] || 0);
         });
-    }
+    });
   }
 
   function buildCards() {
     const host = $('groups');
     host.innerHTML = '';
     const groups = [];
-    S.CATALOGUE.forEach(function (s) { if (groups.indexOf(s.group) < 0) groups.push(s.group); });
+    S.CATALOGUE.forEach(function (s) { const g = s.group || 'Sounds'; if (groups.indexOf(g) < 0) groups.push(g); });
     groups.forEach(function (gname) {
       const sec = document.createElement('section');
       sec.className = 'group';
@@ -378,20 +419,25 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
       grid.className = 'cards';
       sec.append(head, grid);
       host.append(sec);
-      S.CATALOGUE.filter(function (s) { return s.group === gname; }).forEach(function (s) { grid.append(card(s)); });
+      S.CATALOGUE.filter(function (s) { return (s.group || 'Sounds') === gname; }).forEach(function (s) { grid.append(card(s)); });
     });
+  }
+
+  function chipText(s, i) {
+    if (Array.isArray(s.chipLabels) && s.chipLabels[i]) return s.chipLabels[i];
+    return (s.chipLabel || 'Variant {n}').split('{n}').join(String(i + 1));
   }
 
   function card(s) {
     const el = document.createElement('article');
     el.className = 'card';
-    const c = { index: 0, files: s.files, knobs: {} };
+    const c = { index: 0, files: s.files, knobs: {}, loop: !!s.loop };
     ui[s.key] = c;
     const h = document.createElement('h3');
-    h.textContent = s.name;
+    h.textContent = s.name || s.key;
     const when = document.createElement('p');
     when.className = 'when';
-    when.textContent = 'Plays: ' + s.when;
+    when.textContent = s.when ? 'Plays: ' + s.when : '';
     const files = document.createElement('p');
     files.className = 'files';
     files.textContent = s.files.length > 3 ? s.files[0] + ' … ' + s.files[s.files.length - 1] + '.wav' : s.files.map(function (f) { return f + '.wav'; }).join(', ');
@@ -400,10 +446,10 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
     const playBtn = document.createElement('button');
     playBtn.type = 'button';
     playBtn.className = 'play primary';
-    if (s.key === 'music') {
+    if (s.loop) {
       playBtn.textContent = '▶ Play loop';
       playBtn.setAttribute('aria-pressed', 'false');
-      playBtn.addEventListener('click', function () { if (musicSrc) stopMusic(); else startMusic(); });
+      playBtn.addEventListener('click', function () { if (loopKey === s.key) stopLoop(); else startLoop(s.key); });
       c.playBtn = playBtn;
     } else {
       playBtn.textContent = '▶ Play';
@@ -414,18 +460,19 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
       const chips = document.createElement('div');
       chips.className = 'chips';
       chips.setAttribute('role', 'group');
-      chips.setAttribute('aria-label', s.key === 'clear' ? 'Combo level' : 'Variant');
+      chips.setAttribute('aria-label', s.chipGroupLabel || 'Variant');
       s.files.forEach(function (f, i) {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'chip';
-        b.textContent = s.key === 'clear' ? '×' + (i + 1) : 'Variant ' + (i + 1);
+        b.textContent = chipText(s, i);
+        b.title = f + '.wav';
         b.setAttribute('aria-pressed', String(i === 0));
         b.addEventListener('click', function () {
           c.index = i;
           chips.querySelectorAll('.chip').forEach(function (x, j) { x.setAttribute('aria-pressed', String(j === i)); });
           refreshCard(s.key);
-          play(s.key, i);
+          if (s.loop) startLoop(s.key); else play(s.key, i);
         });
         chips.append(b);
       });
@@ -434,14 +481,14 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
     const canvas = document.createElement('canvas');
     canvas.className = 'wave';
     canvas.setAttribute('role', 'img');
-    canvas.setAttribute('aria-label', 'Waveform of ' + s.name);
+    canvas.setAttribute('aria-label', 'Waveform of ' + (s.name || s.key));
     c.canvas = canvas;
     const dur = document.createElement('p');
     dur.className = 'dur';
     c.dur = dur;
     const knobs = document.createElement('div');
     knobs.className = 'knobs';
-    for (const k in s.params) {
+    for (const k in s.params || {}) {
       const spec = s.params[k];
       c.knobs[k] = knob(knobs, s.key + '-' + k, spec, settings.sounds[s.key][k],
         function (v) { settings.sounds[s.key][k] = v; stamp[s.key] = (stamp[s.key] || 0) + 1; writeDraft(); scheduleRefresh(s.key, false); },
@@ -453,29 +500,38 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
     reset.type = 'button';
     reset.textContent = 'Reset this sound';
     reset.addEventListener('click', function () {
-      settings.sounds[s.key] = Object.assign({}, DEFAULTS.sounds[s.key]);
+      settings.sounds[s.key] = Object.assign({}, BASE.sounds[s.key]);
       stamp[s.key] = (stamp[s.key] || 0) + 1;
-      for (const k in c.knobs) { c.knobs[k].input.value = settings.sounds[s.key][k]; c.knobs[k].out.textContent = fmt(c.knobs[k].spec, settings.sounds[s.key][k]); }
+      for (const k in c.knobs) setKnob(c.knobs[k], settings.sounds[s.key][k]);
       writeDraft();
       scheduleRefresh(s.key, true);
     });
     foot.append(dur, reset);
-    el.append(h, when, files, controls, canvas, knobs, foot);
+    el.append(h);
+    if (s.when) el.append(when);
+    el.append(files, controls, canvas, knobs, foot);
     return el;
   }
 
   function buildPads() {
     const box = $('pads');
-    SCENARIOS.forEach(function (sc) {
+    box.innerHTML = '';
+    if (!S.SCENARIOS.length) {
+      $('ctx-h').textContent = 'Listening';
+      $('ctx-hint').textContent = 'Options for how the sounds play on this page.';
+      box.hidden = true;
+    }
+    S.SCENARIOS.forEach(function (sc) {
       const b = document.createElement('button');
       b.type = 'button';
       b.className = 'pad';
-      const t = document.createElement('b'); t.textContent = sc[0];
-      const d = document.createElement('span'); d.textContent = sc[1];
+      const t = document.createElement('b'); t.textContent = sc.name;
+      const d = document.createElement('span'); d.textContent = sc.desc || '';
       b.append(t, d);
-      b.addEventListener('click', function () { runScenario(sc[2]); });
+      b.addEventListener('click', function () { runScenario(sc.events || []); });
       box.append(b);
     });
+    $('musicBedLabel').hidden = !BED;
   }
 
   function setStatus(text, kind) {
@@ -487,32 +543,37 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
   function rebuild() {
     buildGlobal();
     buildCards();
-    // Draw the short sounds first; the 32 s music loop takes longest, so it
-    // renders just after the page is on screen.
+    // Draw the short sounds first; loops take longest, so they render just
+    // after the page is on screen.
     requestAnimationFrame(function () {
-      S.CATALOGUE.forEach(function (s) { if (s.key !== 'music') refreshCard(s.key); });
-      setTimeout(function () { refreshCard('music'); }, 250);
+      S.CATALOGUE.forEach(function (s) { if (!s.loop) refreshCard(s.key); });
+      setTimeout(function () { LOOPS.forEach(function (s) { refreshCard(s.key); }); }, 250);
     });
   }
+  function bumpAll() { for (const s of S.CATALOGUE) stamp[s.key] = (stamp[s.key] || 0) + 1; stamp.__global++; }
 
   // ---------------------------------------------------------- actions
   $('resetAll').addEventListener('click', function () {
-    settings = S.defaults();
-    for (const k in stamp) stamp[k] = (stamp[k] || 0) + 1;
+    settings = clone(BASE);
+    bumpAll();
     writeDraft();
-    stopMusic();
+    stopLoop();
     rebuild();
-    setStatus('Back to the sounds currently in the game.');
+    setStatus('Back to the sounds currently in the project.');
   });
-  $('musicBed').addEventListener('change', function () { if ($('musicBed').checked) startMusic(); else stopMusic(); });
-  $('gameMix').addEventListener('change', function () { if (musicSrc) startMusic(); });
+  $('musicBed').addEventListener('change', function () { if ($('musicBed').checked) { if (BED) startLoop(BED); } else stopLoop(); });
+  $('gameMix').addEventListener('change', function () { if (loopSrc) startLoop(loopKey); });
+
+  function showFallback(payload, message) {
+    $('fallback').hidden = false;
+    $('json').value = JSON.stringify(payload, null, 2);
+    setStatus(message, 'err');
+  }
 
   $('save').addEventListener('click', async function () {
-    const payload = { settings: JSON.parse(JSON.stringify(settings)), note: $('note').value.trim(), savedAt: Date.now() };
+    const payload = { settings: clone(settings), note: $('note').value.trim(), savedAt: Date.now() };
     if (!db) {
-      $('fallback').hidden = false;
-      $('json').value = JSON.stringify(payload, null, 2);
-      setStatus('Saving needs you to be signed in on claude.ai. Copy the settings below instead.', 'err');
+      showFallback(payload, IN_CLAUDE ? 'Saving needs you to be signed in on claude.ai. Copy the settings below instead.' : 'Saving works when this page is opened on claude.ai. Copy the settings below and paste them to Claude.');
       return;
     }
     setStatus('Saving…');
@@ -520,21 +581,19 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
       await db.doc('saves/' + payload.savedAt).set(payload);
       setStatus('Saved. Now tell Claude: "apply my sound settings".', 'ok');
     } catch (e) {
-      $('fallback').hidden = false;
-      $('json').value = JSON.stringify(payload, null, 2);
-      setStatus('Couldn\'t save (' + ((e && e.code) || 'error') + '). Copy the settings below instead.', 'err');
+      showFallback(payload, 'Couldn\'t save (' + ((e && e.code) || 'error') + '). Copy the settings below instead.');
     }
   });
 
   $('copy').addEventListener('click', function () {
     const t = $('json');
     try {
-      navigator.clipboard.writeText(t.value).then(function () { setStatus('Copied. Paste it to Claude.', 'ok'); }, function () { t.select(); setStatus('Select-all is done: copy it with your keyboard or menu.'); });
+      navigator.clipboard.writeText(t.value).then(function () { setStatus('Copied. Paste it to Claude.', 'ok'); }, function () { t.select(); setStatus('Selected: copy it with your keyboard or menu.'); });
     } catch (e) { t.select(); }
   });
 
   $('download').addEventListener('click', async function () {
-    if (!downloads || !window.JSZip) return;
+    if (!window.JSZip) { setStatus('The zip library didn\'t load, so downloads are unavailable.', 'err'); return; }
     setStatus('Building WAV files…');
     try {
       const zip = new window.JSZip();
@@ -544,7 +603,17 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
       zip.file('mix.json', JSON.stringify(S.mix(settings), null, 2));
       zip.file('settings.json', JSON.stringify(settings, null, 2));
       const blob = await zip.generateAsync({ type: 'blob' });
-      await downloads.save({ filename: 'calm-grid-sounds.zip', data: blob });
+      const filename = SLUG + '-sounds.zip';
+      if (downloads) {
+        await downloads.save({ filename: filename, data: blob });
+      } else {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.append(a);
+        a.click();
+        setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      }
       setStatus('Download ready.', 'ok');
     } catch (e) {
       setStatus(e && e.code === 'declined' ? 'Download cancelled.' : 'Couldn\'t prepare the download.', 'err');
@@ -553,7 +622,9 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
 
   // ------------------------------------------------- page capabilities
   async function connect() {
-    if (!window.claude || typeof window.claude.use !== 'function') return;
+    // Opened as a plain file: downloads go through a normal link.
+    $('download').hidden = IN_CLAUDE;
+    if (!IN_CLAUDE) return;
     try { db = await window.claude.use('db'); } catch (e) { db = null; }
     try { downloads = await window.claude.use('downloads'); } catch (e) { downloads = null; }
     $('download').hidden = !downloads;
@@ -562,14 +633,15 @@ textarea { width: 100%; min-height: 70px; font: 0.9rem var(--font-body); color: 
         const snap = await db.collection('saves').orderBy('savedAt', 'desc').limit(1).get();
         if (!snap.empty) {
           const last = snap.docs[0].data();
-          if (last && last.settings) {
+          // Only a save newer than this build: older ones are already in CURRENT.
+          if (last && last.settings && last.savedAt > BUILT_AT) {
             settings = S.normalize(last.settings);
-            for (const k in stamp) stamp[k] = (stamp[k] || 0) + 1;
+            bumpAll();
             rebuild();
             setStatus('Loaded your last saved settings.');
           }
         }
-      } catch (e) { /* keep the defaults */ }
+      } catch (e) { /* keep the current settings */ }
     }
   }
 

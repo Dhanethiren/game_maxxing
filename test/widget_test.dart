@@ -5,7 +5,9 @@ import 'package:calm_grid/app/app_scope.dart';
 import 'package:calm_grid/audio/sound_service.dart';
 import 'package:calm_grid/game/game_state.dart';
 import 'package:calm_grid/game/level.dart';
+import 'package:calm_grid/l10n/l10n.dart';
 import 'package:calm_grid/main.dart';
+import 'package:calm_grid/services/pacing.dart';
 import 'package:calm_grid/services/player_profile.dart';
 import 'package:calm_grid/services/reward_offers.dart';
 import 'package:calm_grid/services/review_prompter.dart';
@@ -22,6 +24,7 @@ AppServices makeServices({Map<String, Object>? stored}) {
     offers: RewardOffers(
       ads: SimulatedAdService(delay: Duration.zero),
       profile: profile,
+      pacer: Pacer(random: Random(1)),
     ),
     sound: SilentSoundService(),
     review: NoReviewService(),
@@ -30,7 +33,11 @@ AppServices makeServices({Map<String, Object>? stored}) {
 
 Widget gameApp(AppServices services, GameState game) => AppScope(
   services: services,
-  child: MaterialApp(home: GameScreen(game: game)),
+  child: MaterialApp(
+    localizationsDelegates: appLocalizationsDelegates,
+    supportedLocales: L10n.supportedLocales,
+    home: GameScreen(game: game),
+  ),
 );
 
 void playUntilLost(GameState game, Random rnd) {
@@ -323,7 +330,8 @@ void main() {
     await tester.pumpWidget(gameApp(services, game));
     playUntilLost(game, Random(8));
     await tester.pump();
-    await tester.pump(const Duration(seconds: 2));
+    // The "calm" wording waits 0.9 s longer before the revive offer appears.
+    await tester.pump(const Duration(seconds: 3));
     await tester.tap(find.text('No thanks'));
     await tester.pump(const Duration(seconds: 1));
     await tester.pump(const Duration(seconds: 3));

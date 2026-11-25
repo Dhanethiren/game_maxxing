@@ -1,8 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:in_app_review/in_app_review.dart';
 
-/// Google Play In-App Review. Ratings feed Play's ranking, and Play weights a
-/// game's *recent* ratings most, so asking happy players matters.
+/// In-app review (Google Play In-App Review, Apple's SKStoreReviewController).
+/// Ratings feed ranking on both stores, and Play weights a game's *recent*
+/// ratings most, so asking happy players matters.
 ///
 /// Google's rules (developer.android.com/guide/playcore/in-app-review):
 /// ask only after the player has experienced enough of the game, at a natural
@@ -10,10 +11,18 @@ import 'package:in_app_review/in_app_review.dart';
 /// with screening questions first. Play also applies its own hidden quota, so
 /// the app keeps its own timing limits ([ReviewPolicy]).
 abstract class ReviewService {
+  /// The app's numeric Apple ID from App Store Connect (App Information →
+  /// Apple ID). iOS needs it to open the store page. TODO(release, iOS).
+  static const appStoreId = '';
+
   Future<void> requestReview();
 
-  /// Opens the Play Store page: the allowed way to rate from a button.
+  /// Opens the store page: the allowed way to rate from a button.
   Future<void> openStoreListing();
+
+  /// Whether [openStoreListing] can work on this device. On iOS it needs
+  /// [appStoreId]; until that is set the "Rate" button stays hidden.
+  bool get canOpenStore;
 
   static ReviewService create() {
     final mobile =
@@ -25,6 +34,11 @@ abstract class ReviewService {
 }
 
 class PlayReviewService implements ReviewService {
+  bool get _ios => defaultTargetPlatform == TargetPlatform.iOS;
+
+  @override
+  bool get canOpenStore => !_ios || ReviewService.appStoreId.isNotEmpty;
+
   @override
   Future<void> requestReview() async {
     try {
@@ -39,7 +53,9 @@ class PlayReviewService implements ReviewService {
   @override
   Future<void> openStoreListing() async {
     try {
-      await InAppReview.instance.openStoreListing();
+      await InAppReview.instance.openStoreListing(
+        appStoreId: _ios ? ReviewService.appStoreId : null,
+      );
     } catch (e) {
       debugPrint('Store listing unavailable: $e');
     }
@@ -50,6 +66,9 @@ class PlayReviewService implements ReviewService {
 class NoReviewService implements ReviewService {
   int requests = 0;
   int storeOpens = 0;
+
+  @override
+  bool get canOpenStore => true;
 
   @override
   Future<void> requestReview() async => requests++;

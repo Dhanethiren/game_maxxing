@@ -9,6 +9,7 @@ import '../game/board.dart';
 import '../game/game_state.dart';
 import '../game/level.dart';
 import '../game/piece.dart';
+import '../l10n/l10n.dart';
 import '../services/reward_offers.dart';
 import '../services/achievements.dart';
 import '../services/progression.dart';
@@ -280,7 +281,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Achievement: ${a.title}  +${Achievement.reward} coins',
+                  context.l10n.achievementToast(
+                    a.titleIn(context.l10n),
+                    Achievement.reward,
+                  ),
                   style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
@@ -301,7 +305,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           backgroundColor: app.theme.accent,
           duration: const Duration(seconds: 2),
           content: Text(
-            'Mission complete: ${m.title}  +${m.reward} coins',
+            context.l10n.missionToast(m.titleIn(context.l10n), m.reward),
             style: const TextStyle(fontWeight: FontWeight.w600),
           ),
         ),
@@ -477,11 +481,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           _revive();
           return;
         }
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('The ad didn\'t finish, so no revive this time.'),
-          ),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(context.l10n.adNotFinished)));
       }
     }
     await _finishGame();
@@ -820,7 +821,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         children: [
           RoundIconButton(
             icon: Icons.pause_rounded,
-            tooltip: 'Pause',
+            tooltip: context.l10n.pause,
             onPressed: _pause,
           ),
           Expanded(
@@ -911,7 +912,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Level ${level.number}  ·  ',
+              '${context.l10n.levelLabel(level.number)}  ·  ',
               style: TextStyle(fontSize: 14 * s, color: theme.textSoft),
             ),
             if (gems) ...[
@@ -1008,11 +1009,13 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
               ),
             ),
           ),
-          if (praise?.praise != null && !_noMoves)
+          if (praise?.praiseIn(context.l10n) != null && !_noMoves)
             PraiseBanner(
               key: ValueKey(praise!.id),
-              text: praise.praise!,
-              sub: praise.combo >= 2 ? 'Combo ×${praise.combo}' : null,
+              text: praise.praiseIn(context.l10n)!,
+              sub: praise.combo >= 2
+                  ? context.l10n.comboSub(praise.combo)
+                  : null,
               color: app.theme.accent,
               // Bigger words for bigger clears: 4 lines and up grow to 40.
               fontSize:
@@ -1139,7 +1142,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       child: FittedBox(
         fit: BoxFit.scaleDown,
         child: Text(
-          'Drag a block onto the board',
+          context.l10n.dragHint,
           style: TextStyle(
             fontSize: 16 * s,
             color: app.theme.textSoft,
@@ -1155,10 +1158,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final s = uiScale(context);
     final decision = _doubleDecision;
     // AdMob policy: say that an ad plays and what it gives, before it plays.
+    final l = context.l10n;
     final doubleLabel = switch (decision?.variant) {
-      OfferVariant.progress => 'Watch ad: +$_coinsEarned coins',
-      OfferVariant.calm => 'Double coins with a short ad',
-      _ => 'Watch ad: ×2 coins',
+      OfferVariant.progress => l.doubleCoinsProgress(_coinsEarned),
+      OfferVariant.calm => l.doubleCoinsCalm,
+      _ => l.doubleCoinsQuick,
     };
     return Container(
       color: Colors.black.withValues(alpha: 0.25),
@@ -1182,7 +1186,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       ..._levelResultHeader(s)
                     else ...[
                       Text(
-                        'No more moves',
+                        l.noMoreMoves,
                         style: TextStyle(
                           fontSize: 28 * s,
                           fontWeight: FontWeight.w800,
@@ -1191,9 +1195,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       ),
                       SizedBox(height: 4 * s),
                       Text(
-                        _newBest
-                            ? 'New best score!'
-                            : 'Well played. Take a breath.',
+                        _newBest ? l.newBest : l.wellPlayed,
                         style: TextStyle(
                           fontSize: 15 * s,
                           fontWeight: _newBest
@@ -1212,8 +1214,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                         ),
                       ),
                       Text(
-                        'Best ${app.profile.bestScore}  ·  ${game.linesClearedTotal} lines'
-                        '${game.maxCombo >= 2 ? '  ·  ×${game.maxCombo} combo' : ''}',
+                        [
+                          l.summaryBest(app.profile.bestScore),
+                          l.summaryLines(game.linesClearedTotal),
+                          if (game.maxCombo >= 2) l.summaryCombo(game.maxCombo),
+                        ].join('  ·  '),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 14 * s,
@@ -1245,8 +1250,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     if (_levelsReached.isNotEmpty) ...[
                       SizedBox(height: 6 * s),
                       Text(
-                        'Level up! Level ${_levelsReached.last}  '
-                        '(+${_levelsReached.map(Progression.levelUpReward).reduce((a, b) => a + b)} coins)',
+                        l.levelUpLine(
+                          _levelsReached.last,
+                          _levelsReached
+                              .map(Progression.levelUpReward)
+                              .reduce((a, b) => a + b),
+                        ),
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 15 * s,
@@ -1270,21 +1279,21 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     ],
                     if (_journey && _levelWon)
                       SoftButton(
-                        label: 'Next level',
+                        label: l.nextLevel,
                         icon: Icons.arrow_forward_rounded,
                         large: true,
                         onPressed: _nextLevel,
                       )
                     else
                       SoftButton(
-                        label: 'Try again',
+                        label: l.tryAgain,
                         icon: Icons.replay_rounded,
                         large: true,
                         onPressed: _playAgain,
                       ),
                     SizedBox(height: 10 * s),
                     SoftButton(
-                      label: _journey ? 'Map' : 'Home',
+                      label: _journey ? l.map : l.home,
                       icon: _journey ? Icons.map_rounded : Icons.home_rounded,
                       outlined: true,
                       onPressed: _goHome,
@@ -1304,7 +1313,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     final level = game.level!;
     return [
       Text(
-        _levelWon ? 'Level ${level.number} complete!' : 'No more moves',
+        _levelWon
+            ? context.l10n.levelComplete(level.number)
+            : context.l10n.noMoreMoves,
         textAlign: TextAlign.center,
         style: TextStyle(
           fontSize: 26 * s,
@@ -1337,8 +1348,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         )
       else
         Text(
-          'None of your pieces fit anywhere.\n'
-          '${level.goalText}: ${(game.goalProgress * 100).round()}% done',
+          '${context.l10n.noPiecesFit}\n'
+          '${context.l10n.goalProgress(level.goalTextIn(context.l10n), (game.goalProgress * 100).round())}',
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 15 * s,
@@ -1349,7 +1360,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       if (_levelWon && app.profile.journeyWinStreak > 1) ...[
         SizedBox(height: 6 * s),
         Text(
-          'Win streak ×${app.profile.journeyWinStreak}: bonus coins!',
+          context.l10n.winStreakBonus(app.profile.journeyWinStreak),
           style: TextStyle(
             fontSize: 14 * s,
             fontWeight: FontWeight.w700,
@@ -1400,7 +1411,7 @@ class _NoMovesBanner extends StatelessWidget {
             boxShadow: liftShadow(color),
           ),
           child: Text(
-            'No more moves',
+            context.l10n.noMoreMoves,
             style: TextStyle(
               fontSize: fontSize,
               fontWeight: FontWeight.w900,

@@ -1,0 +1,9 @@
+# Translations: lib/l10n/app_<language>.arb. English (app_en.arb) is the
+# template; the others must have the same keys.
+arb-dir: lib/l10n
+template-arb-file: app_en.arb
+output-localization-file: app_localizations.dart
+output-class: L10n
+nullable-getter: false
+# Unsupported device languages fall back to the first locale: keep English.
+preferred-supported-locales: ["en"]

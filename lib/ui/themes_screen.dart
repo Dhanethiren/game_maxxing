@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../app/app_scope.dart';
+import '../l10n/l10n.dart';
 import '../audio/sound_service.dart';
 import 'block_painter.dart';
 import 'game_theme.dart';
@@ -36,12 +37,12 @@ class ThemesScreen extends StatelessWidget {
                         children: [
                           RoundIconButton(
                             icon: Icons.arrow_back_rounded,
-                            tooltip: 'Back',
+                            tooltip: context.l10n.back,
                             onPressed: () => Navigator.of(context).pop(),
                           ),
                           SizedBox(width: 12 * s),
                           Text(
-                            'Themes',
+                            context.l10n.themes,
                             style: TextStyle(
                               fontSize: 26 * s,
                               fontWeight: FontWeight.w800,
@@ -63,9 +64,11 @@ class ThemesScreen extends StatelessWidget {
                             Expanded(
                               child: Text(
                                 freeLeft > 0
-                                    ? 'Watch a short ad for $freeCoinsAmount free coins '
-                                          '($freeLeft left today)'
-                                    : 'Free coins are back tomorrow',
+                                    ? context.l10n.freeCoinsOffer(
+                                        freeCoinsAmount,
+                                        freeLeft,
+                                      )
+                                    : context.l10n.freeCoinsTomorrow,
                                 style: TextStyle(
                                   fontSize: 14 * s,
                                   color: theme.text,
@@ -148,7 +151,7 @@ class _ThemeCard extends StatelessWidget {
                 Expanded(child: _Preview(t)),
                 SizedBox(height: 8 * s),
                 Text(
-                  t.name,
+                  t.nameIn(context.l10n),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -162,13 +165,13 @@ class _ThemeCard extends StatelessWidget {
                   width: double.infinity,
                   child: selected
                       ? SoftButton(
-                          label: 'In use',
+                          label: context.l10n.inUse,
                           color: t.accent,
                           onPressed: null,
                         )
                       : owned
                       ? SoftButton(
-                          label: 'Use',
+                          label: context.l10n.use,
                           color: t.accent,
                           onPressed: () => p.selectTheme(t.id),
                         )

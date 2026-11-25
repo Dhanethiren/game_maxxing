@@ -162,27 +162,30 @@ class _SoftButtonState extends State<SoftButton> {
             Icon(widget.icon, color: fg, size: (widget.large ? 28 : 22) * s),
             SizedBox(width: 8 * s),
           ],
+          // Long (e.g. translated) labels shrink to fit instead of being cut.
           Flexible(
-            child: Text(
-              widget.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: fg,
-                fontSize: (widget.large ? 22 : 16) * s,
-                fontWeight: FontWeight.w800,
-                shadows: secondary
-                    ? null
-                    : [
-                        Shadow(
-                          color: shiftColor(
-                            color,
-                            -0.25,
-                          ).withValues(alpha: 0.5),
-                          offset: const Offset(0, 1.5),
-                          blurRadius: 1,
-                        ),
-                      ],
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                widget.label,
+                maxLines: 1,
+                style: TextStyle(
+                  color: fg,
+                  fontSize: (widget.large ? 22 : 16) * s,
+                  fontWeight: FontWeight.w800,
+                  shadows: secondary
+                      ? null
+                      : [
+                          Shadow(
+                            color: shiftColor(
+                              color,
+                              -0.25,
+                            ).withValues(alpha: 0.5),
+                            offset: const Offset(0, 1.5),
+                            blurRadius: 1,
+                          ),
+                        ],
+                ),
               ),
             ),
           ),

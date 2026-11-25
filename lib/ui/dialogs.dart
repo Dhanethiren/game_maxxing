@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../app/app_scope.dart';
+import '../l10n/l10n.dart';
 import '../audio/sound_service.dart';
 import '../services/reward_offers.dart';
 import '../services/achievements.dart';
@@ -15,7 +16,7 @@ Future<T?> _softDialog<T>(
   return showGeneralDialog<T>(
     context: context,
     barrierDismissible: dismissible,
-    barrierLabel: 'Close',
+    barrierLabel: context.l10n.close,
     barrierColor: Colors.black.withValues(alpha: 0.35),
     transitionDuration: const Duration(milliseconds: 260),
     pageBuilder: (context, _, _) => builder(context),
@@ -95,26 +96,17 @@ Future<bool> showReviveOffer(
   required int score,
   required int bestScore,
 }) async {
+  final l = context.l10n;
   final (title, body) = switch (variant) {
-    OfferVariant.quick => (
-      'Continue?',
-      'Watch a short ad to clear some space and keep playing.',
-    ),
+    OfferVariant.quick => (l.reviveQuickTitle, l.reviveQuickBody),
     OfferVariant.progress =>
       bestScore > 0 && score < bestScore
           ? (
-              'So close!',
-              'You\'re ${(score * 100 / bestScore).round()}% of the way to your best '
-                  '($bestScore). Watch a short ad to keep this run going.',
+              l.reviveCloseTitle,
+              l.reviveCloseBody((score * 100 / bestScore).round(), bestScore),
             )
-          : (
-              'Great run!',
-              'You\'re on $score points. Watch a short ad to keep this run going.',
-            ),
-    OfferVariant.calm => (
-      'Take a breath',
-      'No rush. If you\'d like, a short ad will clear some space so you can continue.',
-    ),
+          : (l.reviveGreatTitle, l.reviveGreatBody(score)),
+    OfferVariant.calm => (l.reviveCalmTitle, l.reviveCalmBody),
   };
   final result = await _softDialog<bool>(
     context,
@@ -132,7 +124,7 @@ Future<bool> showReviveOffer(
         _body(context, body),
         const SizedBox(height: 22),
         SoftButton(
-          label: 'Watch ad & continue',
+          label: l.watchAdContinue,
           icon: Icons.play_circle_outline_rounded,
           onPressed: () => Navigator.pop(context, true),
         ),
@@ -140,7 +132,7 @@ Future<bool> showReviveOffer(
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: Text(
-            'No thanks',
+            l.noThanks,
             style: TextStyle(color: AppScope.of(context).theme.textSoft),
           ),
         ),
@@ -159,23 +151,23 @@ Future<PauseChoice> showPauseMenu(BuildContext context) async {
     context,
     (context) => _DialogCard(
       children: [
-        _title(context, 'Paused'),
+        _title(context, context.l10n.paused),
         const SizedBox(height: 18),
         SoftButton(
-          label: 'Resume',
+          label: context.l10n.resume,
           icon: Icons.play_arrow_rounded,
           onPressed: () => Navigator.pop(context, PauseChoice.resume),
         ),
         const SizedBox(height: 10),
         SoftButton(
-          label: 'Restart',
+          label: context.l10n.restart,
           icon: Icons.refresh_rounded,
           outlined: true,
           onPressed: () => Navigator.pop(context, PauseChoice.restart),
         ),
         const SizedBox(height: 10),
         SoftButton(
-          label: 'Home',
+          label: context.l10n.home,
           icon: Icons.home_rounded,
           outlined: true,
           onPressed: () => Navigator.pop(context, PauseChoice.home),
@@ -204,43 +196,49 @@ class _SettingsToggles extends StatelessWidget {
       bool value,
       ValueChanged<bool> set,
     ) {
-      return Column(
-        children: [
-          RoundIconButton(
-            icon: value ? on : off,
-            tooltip: label,
-            onPressed: () => set(!value),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: app.theme.textSoft),
-          ),
-        ],
+      // Equal thirds; a long translated label shrinks instead of overflowing.
+      return Expanded(
+        child: Column(
+          children: [
+            RoundIconButton(
+              icon: value ? on : off,
+              tooltip: label,
+              onPressed: () => set(!value),
+            ),
+            const SizedBox(height: 4),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: TextStyle(fontSize: 12, color: app.theme.textSoft),
+              ),
+            ),
+          ],
+        ),
       );
     }
 
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       children: [
         toggle(
           Icons.volume_up_rounded,
           Icons.volume_off_rounded,
-          'Sound',
+          context.l10n.sound,
           p.soundOn,
           p.setSoundOn,
         ),
         toggle(
           Icons.music_note_rounded,
           Icons.music_off_rounded,
-          'Music',
+          context.l10n.music,
           p.musicOn,
           p.setMusicOn,
         ),
         toggle(
           Icons.vibration_rounded,
           Icons.mobile_off_rounded,
-          'Vibrate',
+          context.l10n.vibrate,
           p.hapticsOn,
           p.setHapticsOn,
         ),
@@ -259,7 +257,7 @@ Future<void> showSettings(BuildContext context) async {
     context,
     (context) => _DialogCard(
       children: [
-        _title(context, 'Settings'),
+        _title(context, context.l10n.settings),
         const SizedBox(height: 18),
         const _SettingsToggles(),
         if (privacy) ...[
@@ -267,17 +265,22 @@ Future<void> showSettings(BuildContext context) async {
           TextButton.icon(
             onPressed: app.offers.ads.showPrivacyOptions,
             icon: const Icon(Icons.privacy_tip_outlined),
-            label: const Text('Privacy options'),
+            label: Text(context.l10n.privacyOptions),
+          ),
+        ],
+        if (app.review.canOpenStore) ...[
+          const SizedBox(height: 8),
+          TextButton.icon(
+            onPressed: app.review.openStoreListing,
+            icon: const Icon(Icons.star_rate_rounded),
+            label: Text(context.l10n.rateGame),
           ),
         ],
         const SizedBox(height: 8),
-        TextButton.icon(
-          onPressed: app.review.openStoreListing,
-          icon: const Icon(Icons.star_rate_rounded),
-          label: const Text('Rate Calm Grid'),
+        SoftButton(
+          label: context.l10n.done,
+          onPressed: () => Navigator.pop(context),
         ),
-        const SizedBox(height: 8),
-        SoftButton(label: 'Done', onPressed: () => Navigator.pop(context)),
       ],
     ),
   );
@@ -302,15 +305,17 @@ Future<int> showDailyReward(BuildContext context) async {
             size: 48 * uiScale(context),
           ),
           const SizedBox(height: 8),
-          _title(context, '${app.profile.dailyStreak}-day streak'),
+          _title(context, context.l10n.dayStreak(app.profile.dailyStreak)),
           const SizedBox(height: 8),
           _body(
             context,
-            "Today's reward is collected. Come back tomorrow for day "
-            '${app.profile.dailyStreak % 7 + 1}.',
+            context.l10n.rewardCollected(app.profile.dailyStreak % 7 + 1),
           ),
           const SizedBox(height: 18),
-          SoftButton(label: 'OK', onPressed: () => Navigator.pop(context)),
+          SoftButton(
+            label: context.l10n.ok,
+            onPressed: () => Navigator.pop(context),
+          ),
         ],
       ),
     );
@@ -318,10 +323,11 @@ Future<int> showDailyReward(BuildContext context) async {
   }
   final base = Progression.dailyRewards[day - 1];
   final decision = app.offers.decide(OfferPlacement.dailyBonus);
+  final l = context.l10n;
   final adLabel = switch (decision.variant) {
-    OfferVariant.quick => 'Watch ad: ×2',
-    OfferVariant.progress => 'Watch ad: get ${base * 2}',
-    OfferVariant.calm => 'Double it with a short ad',
+    OfferVariant.quick => l.dailyDoubleQuick,
+    OfferVariant.progress => l.dailyDoubleProgress(base * 2),
+    OfferVariant.calm => l.dailyDoubleCalm,
   };
   var answered = false;
 
@@ -332,9 +338,9 @@ Future<int> showDailyReward(BuildContext context) async {
     final s = uiScale(context);
     return _DialogCard(
       children: [
-        _title(context, 'Daily reward'),
+        _title(context, l.dailyReward),
         const SizedBox(height: 6),
-        _body(context, 'Come back every day: day 7 is a big one.'),
+        _body(context, l.dailyRewardHint),
         const SizedBox(height: 16),
         Wrap(
           alignment: WrapAlignment.center,
@@ -359,7 +365,7 @@ Future<int> showDailyReward(BuildContext context) async {
                 child: Column(
                   children: [
                     Text(
-                      'D$d',
+                      l.dayShort(d),
                       style: TextStyle(
                         fontSize: 11 * s,
                         fontWeight: FontWeight.w700,
@@ -403,7 +409,7 @@ Future<int> showDailyReward(BuildContext context) async {
         ),
         const SizedBox(height: 10),
         SoftButton(
-          label: 'Claim $base',
+          label: l.claimCoins(base),
           outlined: true,
           onPressed: () async {
             final coins = await app.profile.claimDaily();
@@ -433,13 +439,16 @@ Future<void> showGoals(BuildContext context) {
     context,
     (context) => _DialogCard(
       children: [
-        _title(context, "Today's goals"),
+        _title(context, context.l10n.todaysGoals),
         const SizedBox(height: 6),
-        _body(context, 'New goals every day. Coins are paid automatically.'),
+        _body(context, context.l10n.goalsHint),
         const SizedBox(height: 16),
         for (final m in missions) _MissionRow(m),
         const SizedBox(height: 8),
-        SoftButton(label: 'OK', onPressed: () => Navigator.pop(context)),
+        SoftButton(
+          label: context.l10n.ok,
+          onPressed: () => Navigator.pop(context),
+        ),
         const SizedBox(height: 6),
         TextButton.icon(
           onPressed: () {
@@ -448,8 +457,10 @@ Future<void> showGoals(BuildContext context) {
           },
           icon: const Icon(Icons.emoji_events_rounded),
           label: Text(
-            'Achievements  ${app.profile.unlockedAchievements.length}/'
-            '${Achievement.values.length}',
+            context.l10n.achievementsCount(
+              app.profile.unlockedAchievements.length,
+              Achievement.values.length,
+            ),
           ),
         ),
       ],
@@ -482,7 +493,7 @@ class _MissionRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  mission.title,
+                  mission.titleIn(context.l10n),
                   style: TextStyle(fontSize: 14 * s, color: theme.text),
                 ),
                 SizedBox(height: 4 * s),
@@ -525,12 +536,15 @@ Future<void> showAchievements(BuildContext context) {
     final s = uiScale(context);
     return _DialogCard(
       children: [
-        _title(context, 'Achievements'),
+        _title(context, context.l10n.achievements),
         const SizedBox(height: 4),
         _body(
           context,
-          '${have.length} of ${Achievement.values.length} unlocked '
-          '· +${Achievement.reward} coins each',
+          context.l10n.achievementsSummary(
+            have.length,
+            Achievement.values.length,
+            Achievement.reward,
+          ),
         ),
         const SizedBox(height: 14),
         for (final a in Achievement.values)
@@ -553,7 +567,7 @@ Future<void> showAchievements(BuildContext context) {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        a.title,
+                        a.titleIn(context.l10n),
                         style: TextStyle(
                           fontSize: 14 * s,
                           fontWeight: FontWeight.w700,
@@ -561,7 +575,7 @@ Future<void> showAchievements(BuildContext context) {
                         ),
                       ),
                       Text(
-                        a.description,
+                        a.descriptionIn(context.l10n),
                         style: TextStyle(
                           fontSize: 12.5 * s,
                           color: theme.textSoft,
@@ -573,7 +587,10 @@ Future<void> showAchievements(BuildContext context) {
               ],
             ),
           ),
-        SoftButton(label: 'OK', onPressed: () => Navigator.pop(context)),
+        SoftButton(
+          label: context.l10n.ok,
+          onPressed: () => Navigator.pop(context),
+        ),
       ],
     );
   });

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:material_ui/material_ui.dart';
 
 import '../app/app_scope.dart';
+import '../l10n/l10n.dart';
 import 'block_painter.dart';
 import 'dialogs.dart';
 import 'game_screen.dart';
@@ -110,7 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const Spacer(),
                   RoundIconButton(
                     icon: Icons.settings_rounded,
-                    tooltip: 'Settings',
+                    tooltip: context.l10n.settings,
                     onPressed: () => showSettings(context),
                   ),
                 ],
@@ -120,7 +121,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _Logo(size: logo),
             SizedBox(height: h * 0.025),
             Text(
-              'Calm Grid',
+              context.l10n.appTitle,
               style: TextStyle(
                 fontSize: title,
                 height: 1,
@@ -154,7 +155,9 @@ class _HomeScreenState extends State<HomeScreen> {
             SizedBox(
               width: buttonWidth,
               child: SoftButton(
-                label: p.hasSavedGame ? 'Continue Classic' : 'Classic',
+                label: p.hasSavedGame
+                    ? context.l10n.continueClassic
+                    : context.l10n.classic,
                 icon: Icons.play_arrow_rounded,
                 large: true,
                 onPressed: () => _play(resume: p.hasSavedGame),
@@ -164,7 +167,7 @@ class _HomeScreenState extends State<HomeScreen> {
             SizedBox(
               width: buttonWidth,
               child: SoftButton(
-                label: 'Journey · Level ${p.journeyLevel}',
+                label: context.l10n.journeyLevel(p.journeyLevel),
                 icon: Icons.map_rounded,
                 large: true,
                 outlined: true,
@@ -177,7 +180,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? TextButton(
                       onPressed: () => _play(resume: false),
                       child: Text(
-                        'New Classic game',
+                        context.l10n.newClassicGame,
                         style: TextStyle(
                           color: theme.textSoft,
                           fontSize: 14 * s,
@@ -192,7 +195,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: _FeatureIcon(
                     icon: Icons.redeem_rounded,
-                    label: 'Daily',
+                    label: context.l10n.daily,
                     badge: p.claimableDailyDay() != null,
                     onTap: () => showDailyReward(context),
                   ),
@@ -200,7 +203,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: _FeatureIcon(
                     icon: Icons.donut_large_rounded,
-                    label: 'Spin',
+                    label: context.l10n.spin,
                     badge: p.freeSpinAvailable,
                     onTap: () => showDailySpin(context),
                   ),
@@ -208,7 +211,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: _FeatureIcon(
                     icon: Icons.flag_rounded,
-                    label: 'Goals',
+                    label: context.l10n.goals,
                     badge: false,
                     onTap: () => showGoals(context),
                   ),
@@ -216,7 +219,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 Expanded(
                   child: _FeatureIcon(
                     icon: Icons.palette_rounded,
-                    label: 'Themes',
+                    label: context.l10n.themes,
                     badge: false,
                     onTap: () => _open(const ThemesScreen()),
                   ),

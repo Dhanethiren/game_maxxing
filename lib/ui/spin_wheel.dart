@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:material_ui/material_ui.dart';
 
 import '../app/app_scope.dart';
+import '../l10n/l10n.dart';
 import '../audio/sound_service.dart';
 import '../services/progression.dart';
 import 'widgets.dart';
@@ -12,7 +13,7 @@ import 'widgets.dart';
 Future<void> showDailySpin(BuildContext context) => showGeneralDialog<void>(
   context: context,
   barrierDismissible: true,
-  barrierLabel: 'Close',
+  barrierLabel: context.l10n.close,
   barrierColor: Colors.black.withValues(alpha: 0.35),
   transitionDuration: const Duration(milliseconds: 260),
   pageBuilder: (_, _, _) => const _SpinDialog(),
@@ -120,10 +121,10 @@ class _SpinDialogState extends State<_SpinDialog>
 
     final Widget action;
     if (_spinning) {
-      action = const SoftButton(label: 'Spinning…', onPressed: null);
+      action = SoftButton(label: context.l10n.spinning, onPressed: null);
     } else if (p.freeSpinAvailable) {
       action = SoftButton(
-        label: 'Spin',
+        label: context.l10n.spin,
         icon: Icons.refresh_rounded,
         large: true,
         onPressed: () => _spin(extra: false),
@@ -133,14 +134,13 @@ class _SpinDialogState extends State<_SpinDialog>
       action = Column(
         children: [
           Text(
-            'Watch a short ad for one more spin.\n'
-            'Prize is random: 10 to 200 coins.',
+            context.l10n.extraSpinOffer,
             textAlign: TextAlign.center,
             style: TextStyle(fontSize: 13 * s, color: theme.textSoft),
           ),
           SizedBox(height: 8 * s),
           SoftButton(
-            label: 'Watch ad & spin',
+            label: context.l10n.watchAdSpin,
             icon: Icons.play_circle_outline_rounded,
             color: const Color(0xFFE9B53F),
             onPressed: () => _spin(extra: true),
@@ -149,7 +149,7 @@ class _SpinDialogState extends State<_SpinDialog>
       );
     } else {
       action = SoftButton(
-        label: 'Come back tomorrow',
+        label: context.l10n.comeBackTomorrow,
         outlined: true,
         onPressed: () => Navigator.pop(context),
       );
@@ -170,7 +170,7 @@ class _SpinDialogState extends State<_SpinDialog>
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Daily spin',
+                      context.l10n.dailySpin,
                       style: TextStyle(
                         fontSize: 26 * s,
                         fontWeight: FontWeight.w800,
@@ -180,8 +180,8 @@ class _SpinDialogState extends State<_SpinDialog>
                     SizedBox(height: 4 * s),
                     Text(
                       _prize != null
-                          ? 'You won $_prize coins!'
-                          : 'Free daily spin: 10 to 200 coins',
+                          ? context.l10n.youWonCoins(_prize!)
+                          : context.l10n.freeDailySpin,
                       style: TextStyle(
                         fontSize: 16 * s,
                         fontWeight: _prize != null
@@ -223,7 +223,7 @@ class _SpinDialogState extends State<_SpinDialog>
                       TextButton(
                         onPressed: () => Navigator.pop(context),
                         child: Text(
-                          'Close',
+                          context.l10n.close,
                           style: TextStyle(color: theme.textSoft),
                         ),
                       ),

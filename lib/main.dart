@@ -7,6 +7,7 @@ import 'ads/ad_service.dart';
 import 'app/app_scope.dart';
 import 'audio/sound_service.dart';
 import 'services/player_profile.dart';
+import 'l10n/l10n.dart';
 import 'services/reward_offers.dart';
 import 'ui/game_theme.dart';
 import 'ui/home_screen.dart';
@@ -124,6 +125,8 @@ class _CalmGridAppState extends State<CalmGridApp> {
       return MaterialApp(
         debugShowCheckedModeBanner: false,
         theme: theme.toThemeData(),
+        localizationsDelegates: appLocalizationsDelegates,
+        supportedLocales: L10n.supportedLocales,
         home: Scaffold(
           body: DecoratedBox(
             decoration: theme.background,
@@ -132,7 +135,11 @@ class _CalmGridAppState extends State<CalmGridApp> {
                   ? CircularProgressIndicator(color: theme.accent)
                   : Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Text('Calm Grid could not start:\n\n$_bootError'),
+                      child: Builder(
+                        builder: (context) => Text(
+                          '${context.l10n.couldNotStart}\n\n$_bootError',
+                        ),
+                      ),
                     ),
             ),
           ),
@@ -145,7 +152,9 @@ class _CalmGridAppState extends State<CalmGridApp> {
         builder: (context) {
           final theme = AppScope.of(context).theme;
           return MaterialApp(
-            title: 'Calm Grid',
+            onGenerateTitle: (context) => context.l10n.appTitle,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: L10n.supportedLocales,
             debugShowCheckedModeBanner: false,
             theme: theme.toThemeData(),
             builder: (context, child) => MediaQuery.withClampedTextScaling(
@@ -194,10 +203,10 @@ class _ErrorBanner extends StatelessWidget {
                   Row(
                     children: [
                       const SizedBox(width: 12),
-                      const Expanded(
+                      Expanded(
                         child: Text(
-                          'Something went wrong (screenshot this for the developer)',
-                          style: TextStyle(
+                          context.l10n.somethingWrong,
+                          style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 12,
                           ),

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:material_ui/material_ui.dart';
 
 import '../app/app_scope.dart';
+import '../l10n/l10n.dart';
 import '../game/level.dart';
 import 'board_painter.dart';
 import 'game_screen.dart';
@@ -82,13 +83,13 @@ class _JourneyScreenState extends State<JourneyScreen>
                       children: [
                         RoundIconButton(
                           icon: Icons.arrow_back_rounded,
-                          tooltip: 'Back',
+                          tooltip: context.l10n.back,
                           onPressed: () => Navigator.of(context).pop(),
                         ),
                         SizedBox(width: 12 * s),
                         Expanded(
                           child: Text(
-                            'Journey',
+                            context.l10n.journey,
                             style: TextStyle(
                               fontSize: 26 * s,
                               fontWeight: FontWeight.w800,
@@ -118,8 +119,10 @@ class _JourneyScreenState extends State<JourneyScreen>
                             SizedBox(width: 8 * s),
                             Expanded(
                               child: Text(
-                                'Win streak ${p.journeyWinStreak}: '
-                                '+${(25 * min(p.journeyWinStreak, 4))}% coins on your next win',
+                                context.l10n.journeyStreak(
+                                  p.journeyWinStreak,
+                                  25 * min(p.journeyWinStreak, 4),
+                                ),
                                 style: TextStyle(
                                   fontSize: 14 * s,
                                   color: theme.text,
@@ -163,7 +166,7 @@ class _JourneyScreenState extends State<JourneyScreen>
                     child: SizedBox(
                       width: double.infinity,
                       child: SoftButton(
-                        label: 'Play level $current',
+                        label: context.l10n.playLevel(current),
                         icon: Icons.play_arrow_rounded,
                         large: true,
                         onPressed: () => _open(current),
